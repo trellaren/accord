@@ -1,0 +1,18 @@
+[project]
+name = "accord"
+version = "0.0.5"
+description = "A Click CLI VOIP tool because I never stopped to ask if I should"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1",
+]
+
+[project.scripts]
+accord = "accord.cli:cli"
+
+[build-system]
+requires = ["flit_core<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.module]
+name = "accord"
