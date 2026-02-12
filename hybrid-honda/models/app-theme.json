@@ -1,0 +1,16 @@
+{
+  "accord-color-1": [
+    { "background-color": "honda-color-1" },
+    { "text-color": "trim-color-1" },
+    { "accent-color": "color-2" },
+    { "chrome-color": "color-3" },
+    { "active": "False" }
+  ],
+  "accord-color-2": [
+    { "background-color": "honda-color-1" },
+    { "text-color": "trim-color-1" },
+    { "accent-color": "color-2" },
+    { "chrome-color": "color-3" },
+    { "active": "False" }
+  ]
+}

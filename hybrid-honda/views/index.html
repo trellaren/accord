@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'"
+    />
+    <meta
+      http-equiv="X-Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'"
+    />
+    <link
+      rel="stylesheet"
+      href="node_modules/bootstrap/dist/css/bootstrap.min.css"
+    />
+    <title>Accord</title>
+  </head>
+  <body>
+    <h1>Happy Honda Days</h1>
+    <p>
+      <img src="../imgs/GetLibraryImage.jpg" alt="Happy Honda Days Event" />
+    </p>
+    <p id="info"></p>
+  </body>
+  <script src="./renderer.js"></script>
+</html>

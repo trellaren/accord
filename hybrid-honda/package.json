@@ -1,0 +1,33 @@
+{
+  "name": "hybrid-honda",
+  "version": "1.0.0",
+  "description": "Electron Desktop P2P gaming application",
+  "keywords": [
+    "happy",
+    "honda",
+    "days"
+  ],
+  "homepage": "https://github.com/trellaren/accord#readme",
+  "bugs": {
+    "url": "https://github.com/trellaren/accord/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trellaren/accord.git"
+  },
+  "license": "Unlicense",
+  "author": "trellaren",
+  "type": "commonjs",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "electron": "^40.4.0"
+  },
+  "dependencies": {
+    "bootstrap": "^5.3.8",
+    "sound-play": "^1.1.0"
+  }
+}
