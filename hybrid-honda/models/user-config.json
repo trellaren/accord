@@ -1,0 +1,13 @@
+{
+  "user-config": [
+    {"FirstName":"Maxx", "LastName": "Imouse"},
+    {"Email":"Maxximous@gmail.com", "password":"path/to/locally/stored/password"},
+    {"Servers":[
+        "Fraggots"
+    ]},
+    {"Friends":[
+        "None"
+    ]},
+    {"ActiveTheme":"ThemeName"}
+  ]
+}
