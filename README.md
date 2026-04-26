@@ -10,3 +10,7 @@ I did stop to ask if I should, and just really couldn't see a reason not too...
 
 Hybrid_Honda/Accord:
 Electron/Node.JS version using the web API for voip.
+
+Turbo_Honda/Accord:
+Tauri v2 (Rust backend) + React/TypeScript desktop app targeting Windows and Linux.
+Fully peer-to-peer group VoIP, video streaming, and text channels powered by libp2p.
