@@ -1,0 +1,139 @@
+//! VoIP and Video streaming module.
+//!
+//! Audio path:
+//!   cpal (capture) → Opus encoder → libp2p stream → Opus decoder → cpal (playback)
+//!
+//! Video path (feature = "video"):
+//!   camera (v4l2/DirectShow/AVFoundation) → VP8/H.264 encoder
+//!     → WebRTC data channel → decoder → render in WebView
+
+use anyhow::{anyhow, Result};
+
+use crate::commands::video::VideoDevice;
+use crate::commands::voip::AudioDevice;
+
+/// Active VoIP + video session state.
+pub struct VoipSession {
+    active_channel: Option<String>,
+    muted: bool,
+    deafened: bool,
+    video_active: bool,
+}
+
+impl VoipSession {
+    pub fn new() -> Self {
+        Self {
+            active_channel: None,
+            muted: false,
+            deafened: false,
+            video_active: false,
+        }
+    }
+
+    // ── Voice ─────────────────────────────────────────────────────────────
+
+    /// Join a voice channel.  Opens the audio stream and starts encoding.
+    pub fn join(&mut self, channel_id: &str) -> Result<()> {
+        if self.active_channel.is_some() {
+            return Err(anyhow!("Already in a voice channel"));
+        }
+        // TODO:
+        //   1. Open cpal input stream for the default (or selected) microphone.
+        //   2. Encode PCM with Opus at 48 kHz / 2 ch.
+        //   3. Send encoded frames over the libp2p stream to all channel peers.
+        //   4. Open cpal output stream and decode incoming frames.
+        log::info!("Joining voice channel {channel_id}");
+        self.active_channel = Some(channel_id.to_string());
+        Ok(())
+    }
+
+    /// Leave the current voice channel and release audio resources.
+    pub fn leave(&mut self) -> Result<()> {
+        if self.active_channel.is_none() {
+            return Err(anyhow!("Not in a voice channel"));
+        }
+        // TODO: stop cpal streams and close libp2p audio sub-stream.
+        log::info!("Leaving voice channel");
+        self.active_channel = None;
+        Ok(())
+    }
+
+    /// Mute or unmute the local microphone.
+    pub fn set_mute(&mut self, muted: bool) -> Result<()> {
+        log::debug!("set_mute = {muted}");
+        self.muted = muted;
+        // TODO: pause/resume the cpal input stream or zero-fill the encoder.
+        Ok(())
+    }
+
+    /// Deafen or undeafen (silence all incoming audio).
+    pub fn set_deafen(&mut self, deafened: bool) -> Result<()> {
+        log::debug!("set_deafen = {deafened}");
+        self.deafened = deafened;
+        // TODO: pause/resume the cpal output stream.
+        Ok(())
+    }
+
+    /// Enumerate host audio devices using cpal.
+    pub fn enumerate_devices() -> Result<Vec<AudioDevice>> {
+        // TODO: use cpal::available_hosts() + host.devices() to build this list.
+        Ok(vec![
+            AudioDevice {
+                id: "default_input".to_string(),
+                name: "Default Input".to_string(),
+                is_input: true,
+            },
+            AudioDevice {
+                id: "default_output".to_string(),
+                name: "Default Output".to_string(),
+                is_input: false,
+            },
+        ])
+    }
+
+    // ── Video ─────────────────────────────────────────────────────────────
+
+    /// Start capturing video and streaming it to the channel peers.
+    pub fn start_video(&mut self, channel_id: &str, device_id: Option<&str>) -> Result<()> {
+        if self.video_active {
+            return Err(anyhow!("Video stream already active"));
+        }
+        // TODO (feature = "video"):
+        //   1. Open the selected camera via nokhwa (cross-platform capture).
+        //   2. Encode frames with the WebRTC crate or a software VP8 encoder.
+        //   3. Negotiate an SDP offer/answer with peers via the GossipSub signalling channel.
+        //   4. Stream encoded video over the established WebRTC data channel.
+        log::info!(
+            "Starting video stream on channel {channel_id} (device={:?})",
+            device_id
+        );
+        self.video_active = true;
+        Ok(())
+    }
+
+    /// Stop the outbound video stream.
+    pub fn stop_video(&mut self) -> Result<()> {
+        if !self.video_active {
+            return Err(anyhow!("No active video stream"));
+        }
+        // TODO: close WebRTC peer connection and release camera handle.
+        log::info!("Stopping video stream");
+        self.video_active = false;
+        Ok(())
+    }
+
+    /// List available video capture devices.
+    pub fn enumerate_video_devices() -> Result<Vec<VideoDevice>> {
+        // TODO: use nokhwa::query_devices() to enumerate real cameras.
+        Ok(vec![VideoDevice {
+            id: "default_camera".to_string(),
+            name: "Default Camera".to_string(),
+        }])
+    }
+}
+
+impl Default for VoipSession {
+    fn default() -> Self {
+        Self::new()
+    }
+}

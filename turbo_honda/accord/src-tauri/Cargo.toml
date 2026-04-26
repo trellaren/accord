@@ -1,0 +1,76 @@
+[package]
+name = "accord"
+version = "0.1.0"
+description = "Accord – Turbo Honda: P2P Group VoIP & Video/Text Desktop App"
+authors = ["trellaren"]
+edition = "2021"
+
+[lib]
+name = "accord_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "accord"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-notification = "2"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+
+# P2P networking
+libp2p = { version = "0.55", features = [
+    "tcp",
+    "noise",
+    "yamux",
+    "mdns",
+    "gossipsub",
+    "identify",
+    "ping",
+    "macros",
+] }
+
+# WebRTC for audio/video (media streams)
+webrtc = { version = "0.12", optional = true }
+
+# Audio capture/playback
+cpal = "0.15"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# UUIDs for peer / channel IDs
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Anyhow for ergonomic error handling
+anyhow = "1"
+
+# Async channels
+async-channel = "2"
+
+[features]
+# Include WebRTC video support when this feature is enabled
+video = ["dep:webrtc"]
+# Default build without optional heavy deps so the scaffold compiles quickly
+default = []
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
