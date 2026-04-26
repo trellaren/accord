@@ -74,6 +74,7 @@ eggs/
 .eggs/
 lib/
 lib64/
+!turbo_honda/accord/src/lib/
 parts/
 sdist/
 var/
