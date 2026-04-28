@@ -30,6 +30,7 @@ tokio-util = { version = "0.7", features = ["codec"] }
 
 # P2P networking
 libp2p = { version = "0.55", features = [
+    "tokio",
     "tcp",
     "noise",
     "yamux",
@@ -39,6 +40,8 @@ libp2p = { version = "0.55", features = [
     "ping",
     "macros",
 ] }
+
+futures = "0.3"
 
 # WebRTC for audio/video (media streams)
 webrtc = { version = "0.12", optional = true }
