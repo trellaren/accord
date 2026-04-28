@@ -1,8 +1,8 @@
-//! In-memory text-channel and message store.
+//! In-memory text-channel and message store (legacy scaffold).
 //!
-//! In a full implementation messages would be:
-//!   - Gossiped to connected peers via libp2p GossipSub.
-//!   - Persisted locally with SQLite (via sqlx or rusqlite).
+//! This module has been superseded by [`crate::db`], which provides the same
+//! operations backed by SQLite via [`sqlx`].  It is kept here for reference
+//! only and is no longer wired into the application.
 
 use anyhow::{anyhow, Result};
 use chrono::Utc;
