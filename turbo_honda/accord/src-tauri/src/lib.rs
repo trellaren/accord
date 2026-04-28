@@ -1,7 +1,7 @@
 use tauri::Manager;
 
-mod channels;
 mod commands;
+mod db;
 mod p2p;
 mod voip;
 
@@ -13,8 +13,8 @@ pub struct AppState {
     pub p2p: std::sync::Mutex<p2p::P2PNode>,
     /// VoIP session handle.
     pub voip: std::sync::Mutex<voip::VoipSession>,
-    /// In-memory channel / message store.
-    pub channels: std::sync::Mutex<channels::ChannelStore>,
+    /// SQLite-backed channel / message store.
+    pub db: db::Db,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -28,12 +28,22 @@ pub fn run() {
         .setup(|app| {
             let p2p_node = p2p::P2PNode::new();
             let voip_session = voip::VoipSession::new();
-            let channel_store = channels::ChannelStore::new();
+
+            let app_dir = app
+                .path()
+                .app_data_dir()
+                .expect("could not resolve app data directory");
+            let db = tauri::async_runtime::block_on(async {
+                let db = db::Db::new(&app_dir).await?;
+                db.bootstrap_defaults().await?;
+                anyhow::Ok(db)
+            })
+            .expect("failed to initialise SQLite database");
 
             app.manage(AppState {
                 p2p: std::sync::Mutex::new(p2p_node),
                 voip: std::sync::Mutex::new(voip_session),
-                channels: std::sync::Mutex::new(channel_store),
+                db,
             });
 
             Ok(())

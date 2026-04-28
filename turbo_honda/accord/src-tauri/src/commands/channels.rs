@@ -1,7 +1,6 @@
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChannelInfo {
@@ -26,8 +25,11 @@ pub async fn create_channel(
     kind: String,
     state: State<'_, AppState>,
 ) -> Result<ChannelInfo, String> {
-    let mut store = state.channels.lock().map_err(|e| e.to_string())?;
-    store.create_channel(name, kind).map_err(|e| e.to_string())
+    state
+        .db
+        .create_channel(name, kind)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Delete a channel by id.
@@ -36,15 +38,17 @@ pub async fn delete_channel(
     channel_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    let mut store = state.channels.lock().map_err(|e| e.to_string())?;
-    store.delete_channel(&channel_id).map_err(|e| e.to_string())
+    state
+        .db
+        .delete_channel(&channel_id)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// List all channels.
 #[tauri::command]
 pub async fn list_channels(state: State<'_, AppState>) -> Result<Vec<ChannelInfo>, String> {
-    let store = state.channels.lock().map_err(|e| e.to_string())?;
-    Ok(store.list_channels())
+    state.db.list_channels().await.map_err(|e| e.to_string())
 }
 
 /// Send a text message to a channel. The message is gossiped to all peers.
@@ -55,19 +59,23 @@ pub async fn send_message(
     author_peer_id: String,
     state: State<'_, AppState>,
 ) -> Result<MessagePayload, String> {
-    let mut store = state.channels.lock().map_err(|e| e.to_string())?;
-    store
+    state
+        .db
         .send_message(channel_id, content, author_peer_id)
+        .await
         .map_err(|e| e.to_string())
 }
 
-/// Retrieve the most recent messages for a channel (newest first).
+/// Retrieve the most recent messages for a channel (oldest first).
 #[tauri::command]
 pub async fn get_messages(
     channel_id: String,
-    limit: Option<usize>,
+    limit: Option<u32>,
     state: State<'_, AppState>,
 ) -> Result<Vec<MessagePayload>, String> {
-    let store = state.channels.lock().map_err(|e| e.to_string())?;
-    Ok(store.get_messages(&channel_id, limit.unwrap_or(50)))
+    state
+        .db
+        .get_messages(&channel_id, limit.unwrap_or(50))
+        .await
+        .map_err(|e| e.to_string())
 }
