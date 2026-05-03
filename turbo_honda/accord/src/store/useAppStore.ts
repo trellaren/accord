@@ -3,6 +3,8 @@ import {
   ChannelInfo,
   MessagePayload,
   PeerInfo,
+  ServerInfo,
+  UserProfile,
   getLocalPeerId,
   listChannels,
   listPeers,
@@ -21,11 +23,23 @@ import {
   stopScreenShare,
   announceChannelPresence,
   getPeersInChannel,
+  createServer,
+  listServers,
+  joinServer,
+  getServerInvite,
+  listServerMembers,
+  removeServerMember,
+  getUserProfile,
+  setUserProfile,
 } from "../lib/tauri";
 
 interface AppState {
   // Identity
   localPeerId: string;
+
+  // Servers
+  servers: ServerInfo[];
+  activeServerId: string | null;
 
   // Channels
   channels: ChannelInfo[];
@@ -49,20 +63,38 @@ interface AppState {
   videoActive: boolean;
   screenShareActive: boolean;
 
+  // User profile
+  userProfile: UserProfile | null;
+
   // Actions
   initNode: () => Promise<void>;
-  loadChannels: () => Promise<void>;
+
+  // Server actions
+  loadServers: () => Promise<void>;
+  selectServer: (id: string) => void;
+  createNewServer: (name: string) => Promise<void>;
+  joinExistingServer: (inviteCode: string) => Promise<void>;
+  getInviteCode: (serverId: string) => Promise<string>;
+  loadServerMembers: (serverId: string) => Promise<string[]>;
+  kickServerMember: (serverId: string, peerId: string) => Promise<void>;
+
+  // Channel actions
+  loadChannels: (serverId?: string | null) => Promise<void>;
   selectChannel: (id: string) => void;
   loadMessages: (channelId: string) => Promise<void>;
   postMessage: (channelId: string, content: string) => Promise<void>;
-  addChannel: (name: string, kind: string) => Promise<void>;
+  addChannel: (name: string, kind: string, serverId?: string | null) => Promise<void>;
   removeChannel: (channelId: string) => Promise<void>;
+
+  // Peer actions
   refreshPeers: () => Promise<void>;
   discoverPeers: () => Promise<void>;
   /** Announce which channel the local peer is in. Pass null to mark as idle. */
   announcePresence: (channelId: string | null) => Promise<void>;
   /** Refresh the member list for a specific channel from the backend. */
   loadChannelMembers: (channelId: string) => Promise<void>;
+
+  // VoIP / video actions
   joinVoice: (channelId: string) => Promise<void>;
   leaveVoice: () => Promise<void>;
   toggleMute: () => Promise<void>;
@@ -71,10 +103,16 @@ interface AppState {
   stopVideo: () => Promise<void>;
   beginScreenShare: (channelId: string, sourceId?: string) => Promise<void>;
   endScreenShare: () => Promise<void>;
+
+  // User profile actions
+  loadUserProfile: () => Promise<void>;
+  saveUserProfile: (displayName: string, email: string, timezone: string) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   localPeerId: "",
+  servers: [],
+  activeServerId: null,
   channels: [],
   activeChannelId: null,
   messages: {},
@@ -85,14 +123,56 @@ export const useAppStore = create<AppState>((set, get) => ({
   deafened: false,
   videoActive: false,
   screenShareActive: false,
+  userProfile: null,
 
   initNode: async () => {
     const peerId = await getLocalPeerId();
     set({ localPeerId: peerId });
   },
 
-  loadChannels: async () => {
-    const channels = await listChannels();
+  // ── Servers ───────────────────────────────────────────────────────────────
+
+  loadServers: async () => {
+    const servers = await listServers();
+    set({ servers });
+  },
+
+  selectServer: (id) => {
+    set({ activeServerId: id, activeChannelId: null });
+  },
+
+  createNewServer: async (name) => {
+    const server = await createServer(name);
+    set((s) => ({ servers: [...s.servers, server], activeServerId: server.id }));
+  },
+
+  joinExistingServer: async (inviteCode) => {
+    const server = await joinServer(inviteCode);
+    set((s) => {
+      const exists = s.servers.some((sv) => sv.id === server.id);
+      return {
+        servers: exists ? s.servers : [...s.servers, server],
+        activeServerId: server.id,
+      };
+    });
+  },
+
+  getInviteCode: async (serverId) => {
+    return getServerInvite(serverId);
+  },
+
+  loadServerMembers: async (serverId) => {
+    return listServerMembers(serverId);
+  },
+
+  kickServerMember: async (serverId, peerId) => {
+    await removeServerMember(serverId, peerId);
+  },
+
+  // ── Channels ──────────────────────────────────────────────────────────────
+
+  loadChannels: async (serverId) => {
+    const channels = await listChannels(serverId);
     set({ channels });
   },
 
@@ -116,8 +196,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
 
-  addChannel: async (name, kind) => {
-    const channel = await createChannel(name, kind);
+  addChannel: async (name, kind, serverId) => {
+    const channel = await createChannel(name, kind, serverId);
     set((s) => ({ channels: [...s.channels, channel] }));
   },
 
@@ -129,6 +209,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         s.activeChannelId === channelId ? null : s.activeChannelId,
     }));
   },
+
+  // ── Peers ─────────────────────────────────────────────────────────────────
 
   refreshPeers: async () => {
     const peers = await listPeers();
@@ -149,6 +231,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       channelMembers: { ...s.channelMembers, [channelId]: members },
     }));
   },
+
+  // ── VoIP / video ──────────────────────────────────────────────────────────
 
   joinVoice: async (channelId) => {
     await joinVoiceChannel(channelId);
@@ -195,5 +279,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   endScreenShare: async () => {
     await stopScreenShare();
     set({ screenShareActive: false });
+  },
+
+  // ── User profile ──────────────────────────────────────────────────────────
+
+  loadUserProfile: async () => {
+    const userProfile = await getUserProfile();
+    set({ userProfile });
+  },
+
+  saveUserProfile: async (displayName, email, timezone) => {
+    const userProfile = await setUserProfile(displayName, email, timezone);
+    set({ userProfile });
   },
 }));

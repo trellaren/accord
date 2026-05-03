@@ -1,0 +1,60 @@
+.rail {
+  width: var(--server-rail-width);
+  min-width: var(--server-rail-width);
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 6px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.serverBtn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-radius 0.15s, background 0.15s, color 0.15s;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.serverBtn:hover {
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: #fff;
+}
+
+.serverBtnActive {
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: #fff;
+}
+
+.serverBtnAdd {
+  background: var(--bg-tertiary);
+  color: var(--success);
+  font-size: 20px;
+}
+
+.serverBtnAdd:hover {
+  background: var(--success);
+  color: #fff;
+}
+
+.divider {
+  width: 32px;
+  height: 2px;
+  background: var(--border-strong);
+  border-radius: 1px;
+  margin: 2px 0;
+  flex-shrink: 0;
+}
