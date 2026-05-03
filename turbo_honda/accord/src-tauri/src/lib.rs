@@ -30,19 +30,19 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            let p2p_node = p2p::P2PNode::new();
             let voip_session = voip::VoipSession::new();
 
             let app_dir = app
                 .path()
                 .app_data_dir()
                 .expect("could not resolve app data directory");
-            let db = tauri::async_runtime::block_on(async {
+            let (p2p_node, db) = tauri::async_runtime::block_on(async {
+                let p2p_node = p2p::P2PNode::new();
                 let db = db::Db::new(&app_dir).await?;
                 db.bootstrap_defaults().await?;
-                anyhow::Ok(db)
+                anyhow::Ok((p2p_node, db))
             })
-            .expect("failed to initialise SQLite database");
+            .expect("failed to initialise P2P node and SQLite database");
 
             app.manage(AppState {
                 p2p: std::sync::Mutex::new(p2p_node),
