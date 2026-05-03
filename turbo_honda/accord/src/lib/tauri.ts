@@ -85,6 +85,18 @@ export function setDeafen(deafened: boolean): Promise<void> {
 
 // ── Video commands ────────────────────────────────────────────────────────────
 
+export interface VideoDevice {
+  id: string;
+  name: string;
+}
+
+export interface ScreenSource {
+  id: string;
+  name: string;
+  /** "screen" for a full display, "window" for an application window. */
+  kind: "screen" | "window";
+}
+
 export function startVideoStream(
   channelId: string,
   deviceId?: string,
@@ -94,4 +106,23 @@ export function startVideoStream(
 
 export function stopVideoStream(): Promise<void> {
   return invoke("stop_video_stream");
+}
+
+export function listVideoDevices(): Promise<VideoDevice[]> {
+  return invoke("list_video_devices");
+}
+
+export function listScreenSources(): Promise<ScreenSource[]> {
+  return invoke("list_screen_sources");
+}
+
+export function startScreenShare(
+  channelId: string,
+  sourceId?: string,
+): Promise<void> {
+  return invoke("start_screen_share", { channelId, sourceId });
+}
+
+export function stopScreenShare(): Promise<void> {
+  return invoke("stop_screen_share");
 }

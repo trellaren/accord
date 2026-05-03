@@ -53,6 +53,9 @@ hickory-proto = "=0.25.0-alpha.4"
 # WebRTC for audio/video (media streams)
 webrtc = { version = "0.12", optional = true }
 
+# Camera capture via nokhwa (cross-platform: v4l2 / DirectShow / AVFoundation)
+nokhwa = { version = "0.10", features = ["input-native"], optional = true }
+
 # Audio capture/playback
 cpal = "0.15"
 
@@ -80,7 +83,7 @@ async-channel = "2"
 
 [features]
 # Include WebRTC video support when this feature is enabled
-video = ["dep:webrtc"]
+video = ["dep:webrtc", "dep:nokhwa"]
 # Default build without optional heavy deps so the scaffold compiles quickly
 default = []
 
