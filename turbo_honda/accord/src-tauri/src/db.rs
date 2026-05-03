@@ -108,6 +108,22 @@ impl Db {
         .execute(&self.pool)
         .await?;
 
+        // Add server_id column to channels if it was created without it
+        // (migration for databases predating server support).
+        let has_server_id = sqlx::query("PRAGMA table_info(channels)")
+            .fetch_all(&self.pool)
+            .await?
+            .into_iter()
+            .any(|row| row.get::<String, _>("name") == "server_id");
+
+        if !has_server_id {
+            sqlx::query(
+                "ALTER TABLE channels ADD COLUMN server_id TEXT REFERENCES servers(id) ON DELETE CASCADE",
+            )
+            .execute(&self.pool)
+            .await?;
+        }
+
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS messages (
                 id              TEXT PRIMARY KEY,
@@ -751,5 +767,51 @@ mod tests {
             .unwrap();
         let kind = db.get_channel_kind(&ch.id).await.unwrap();
         assert_eq!(kind, "voice");
+    }
+
+    /// Verify that `migrate()` adds the `server_id` column to a `channels`
+    /// table that was created by an older version of the schema (without it).
+    #[tokio::test]
+    async fn test_migrate_adds_server_id_to_old_channels_table() {
+        // Build a raw pool and create the legacy schema manually (no server_id).
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "CREATE TABLE servers (
+                id             TEXT PRIMARY KEY,
+                name           TEXT NOT NULL,
+                invite_code    TEXT NOT NULL UNIQUE,
+                owner_peer_id  TEXT NOT NULL
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        // Old channels table — intentionally missing server_id.
+        sqlx::query(
+            "CREATE TABLE channels (
+                id    TEXT PRIMARY KEY,
+                name  TEXT NOT NULL,
+                kind  TEXT NOT NULL
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // Wrap in Db and run the migration.
+        let db = Db { pool };
+        db.migrate().await.expect("migration should succeed on old schema");
+
+        // After migration the column must be present, so create_channel works.
+        let sid = make_server(&db).await;
+        let ch = db
+            .create_channel("general".into(), "text".into(), Some(sid.clone()))
+            .await
+            .expect("create_channel should succeed after migration");
+        assert_eq!(ch.server_id, Some(sid));
     }
 }
