@@ -92,6 +92,7 @@ impl P2PNode {
                     ping,
                 }
             })
+            .expect("failed to build AccordBehaviour (gossipsub/mdns/identify/ping)")
             .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(60)))
             .build();
 
