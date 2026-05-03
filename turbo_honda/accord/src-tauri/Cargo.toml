@@ -43,6 +43,13 @@ libp2p = { version = "0.55", features = [
 
 futures = "0.3"
 
+# Pin hickory-proto to the alpha that ships `tokio-runtime` feature.
+# libp2p-dns 0.43 uses hickory-resolver 0.25.0-alpha.4, which in turn requires
+# hickory-proto with `tokio-runtime`.  The stable 0.25.2 renamed that feature to
+# `tokio`, causing a resolution failure.  Pinning here keeps the whole tree on the
+# compatible pre-release while still satisfying libp2p-mdns (^0.25.0-alpha.4).
+hickory-proto = "=0.25.0-alpha.4"
+
 # WebRTC for audio/video (media streams)
 webrtc = { version = "0.12", optional = true }
 
