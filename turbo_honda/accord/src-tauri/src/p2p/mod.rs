@@ -85,14 +85,13 @@ impl P2PNode {
                     key.public(),
                 ));
                 let ping = ping::Behaviour::new(ping::Config::default());
-                Ok::<AccordBehaviour, std::convert::Infallible>(AccordBehaviour {
+                AccordBehaviour {
                     gossipsub,
                     mdns,
                     identify,
                     ping,
-                })
+                }
             })
-            .expect("behaviour setup failed")
             .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(60)))
             .build();
 
