@@ -17,6 +17,8 @@ import {
   setDeafen,
   startVideoStream,
   stopVideoStream,
+  startScreenShare,
+  stopScreenShare,
 } from "../lib/tauri";
 
 interface AppState {
@@ -40,6 +42,7 @@ interface AppState {
 
   // Video state
   videoActive: boolean;
+  screenShareActive: boolean;
 
   // Actions
   initNode: () => Promise<void>;
@@ -57,6 +60,8 @@ interface AppState {
   toggleDeafen: () => Promise<void>;
   startVideo: (channelId: string, deviceId?: string) => Promise<void>;
   stopVideo: () => Promise<void>;
+  beginScreenShare: (channelId: string, sourceId?: string) => Promise<void>;
+  endScreenShare: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -69,6 +74,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   muted: false,
   deafened: false,
   videoActive: false,
+  screenShareActive: false,
 
   initNode: async () => {
     const peerId = await getLocalPeerId();
@@ -153,5 +159,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   stopVideo: async () => {
     await stopVideoStream();
     set({ videoActive: false });
+  },
+
+  beginScreenShare: async (channelId, sourceId) => {
+    await startScreenShare(channelId, sourceId);
+    set({ screenShareActive: true });
+  },
+
+  endScreenShare: async () => {
+    await stopScreenShare();
+    set({ screenShareActive: false });
   },
 }));

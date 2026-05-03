@@ -65,6 +65,9 @@ pub fn run() {
             commands::video::start_video_stream,
             commands::video::stop_video_stream,
             commands::video::list_video_devices,
+            commands::video::list_screen_sources,
+            commands::video::start_screen_share,
+            commands::video::stop_screen_share,
             // Text channels
             commands::channels::create_channel,
             commands::channels::delete_channel,

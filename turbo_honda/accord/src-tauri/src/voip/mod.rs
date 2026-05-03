@@ -9,7 +9,7 @@
 
 use anyhow::{anyhow, Result};
 
-use crate::commands::video::VideoDevice;
+use crate::commands::video::{ScreenSource, VideoDevice};
 use crate::commands::voip::AudioDevice;
 
 pub mod codec;
@@ -20,6 +20,7 @@ pub struct VoipSession {
     muted: bool,
     deafened: bool,
     video_active: bool,
+    screen_share_active: bool,
     /// Opus encoder – present while a voice channel is active.
     encoder: Option<codec::Encoder>,
     /// Opus decoder – present while a voice channel is active.
@@ -33,6 +34,7 @@ impl VoipSession {
             muted: false,
             deafened: false,
             video_active: false,
+            screen_share_active: false,
             encoder: None,
             decoder: None,
         }
@@ -146,6 +148,59 @@ impl VoipSession {
             id: "default_camera".to_string(),
             name: "Default Camera".to_string(),
         }])
+    }
+
+    /// List capturable screen / window sources.
+    pub fn enumerate_screen_sources() -> Result<Vec<ScreenSource>> {
+        // TODO: use a platform screen-capture library (e.g. xcap, screenshots,
+        //   or the Tauri screen-capture plugin) to enumerate real displays and
+        //   application windows.
+        Ok(vec![
+            ScreenSource {
+                id: "screen:0".to_string(),
+                name: "Entire Screen".to_string(),
+                kind: "screen".to_string(),
+            },
+            ScreenSource {
+                id: "screen:1".to_string(),
+                name: "Display 2".to_string(),
+                kind: "screen".to_string(),
+            },
+        ])
+    }
+
+    // ── Screen share ──────────────────────────────────────────────────────
+
+    /// Record that the user has started sharing their screen / a window into
+    /// the given channel.  The actual capture is driven by the frontend via
+    /// `getDisplayMedia()`; the backend registers the active state and will
+    /// eventually signal peers via GossipSub / WebRTC.
+    pub fn start_screen_share(&mut self, channel_id: &str, source_id: Option<&str>) -> Result<()> {
+        if self.screen_share_active {
+            return Err(anyhow!("Screen share already active"));
+        }
+        // TODO (feature = "video"):
+        //   1. Accept the source_id selected by the frontend picker.
+        //   2. Broadcast a "screen-share-started" event to peers via GossipSub.
+        //   3. Begin forwarding the encoded frame data received from the frontend
+        //      WebView over a WebRTC data channel to each peer.
+        log::info!(
+            "Screen share started on channel {channel_id} (source={:?})",
+            source_id
+        );
+        self.screen_share_active = true;
+        Ok(())
+    }
+
+    /// Stop the current screen share session and release resources.
+    pub fn stop_screen_share(&mut self) -> Result<()> {
+        if !self.screen_share_active {
+            return Err(anyhow!("No active screen share"));
+        }
+        // TODO: broadcast "screen-share-stopped" to peers and close WebRTC channel.
+        log::info!("Screen share stopped");
+        self.screen_share_active = false;
+        Ok(())
     }
 }
 
