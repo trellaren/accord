@@ -12,12 +12,18 @@ use anyhow::{anyhow, Result};
 use crate::commands::video::VideoDevice;
 use crate::commands::voip::AudioDevice;
 
+pub mod codec;
+
 /// Active VoIP + video session state.
 pub struct VoipSession {
     active_channel: Option<String>,
     muted: bool,
     deafened: bool,
     video_active: bool,
+    /// Opus encoder – present while a voice channel is active.
+    encoder: Option<codec::Encoder>,
+    /// Opus decoder – present while a voice channel is active.
+    decoder: Option<codec::Decoder>,
 }
 
 impl VoipSession {
@@ -27,6 +33,8 @@ impl VoipSession {
             muted: false,
             deafened: false,
             video_active: false,
+            encoder: None,
+            decoder: None,
         }
     }
 
@@ -37,11 +45,17 @@ impl VoipSession {
         if self.active_channel.is_some() {
             return Err(anyhow!("Already in a voice channel"));
         }
+        // Initialise the Opus encoder and decoder for this session.
+        let encoder = codec::Encoder::new()?;
+        let decoder = codec::Decoder::new()?;
+        self.encoder = Some(encoder);
+        self.decoder = Some(decoder);
         // TODO:
         //   1. Open cpal input stream for the default (or selected) microphone.
-        //   2. Encode PCM with Opus at 48 kHz / 2 ch.
-        //   3. Send encoded frames over the libp2p stream to all channel peers.
-        //   4. Open cpal output stream and decode incoming frames.
+        //   2. Feed 20 ms PCM frames to `self.encoder` and transmit the encoded
+        //      bytes over the libp2p stream to all channel peers.
+        //   3. Receive encoded frames from peers, pass them to `self.decoder`,
+        //      and write the PCM output to the cpal playback stream.
         log::info!("Joining voice channel {channel_id}");
         self.active_channel = Some(channel_id.to_string());
         Ok(())
@@ -52,6 +66,9 @@ impl VoipSession {
         if self.active_channel.is_none() {
             return Err(anyhow!("Not in a voice channel"));
         }
+        // Release the codec instances.
+        self.encoder = None;
+        self.decoder = None;
         // TODO: stop cpal streams and close libp2p audio sub-stream.
         log::info!("Leaving voice channel");
         self.active_channel = None;
