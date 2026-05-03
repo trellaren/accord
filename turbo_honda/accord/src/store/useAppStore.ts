@@ -19,6 +19,8 @@ import {
   stopVideoStream,
   startScreenShare,
   stopScreenShare,
+  announceChannelPresence,
+  getPeersInChannel,
 } from "../lib/tauri";
 
 interface AppState {
@@ -34,6 +36,9 @@ interface AppState {
 
   // Peers
   peers: PeerInfo[];
+
+  // Active members per channel (channel_id → peer list)
+  channelMembers: Record<string, PeerInfo[]>;
 
   // VoIP state
   inVoiceChannel: boolean;
@@ -54,6 +59,10 @@ interface AppState {
   removeChannel: (channelId: string) => Promise<void>;
   refreshPeers: () => Promise<void>;
   discoverPeers: () => Promise<void>;
+  /** Announce which channel the local peer is in. Pass null to mark as idle. */
+  announcePresence: (channelId: string | null) => Promise<void>;
+  /** Refresh the member list for a specific channel from the backend. */
+  loadChannelMembers: (channelId: string) => Promise<void>;
   joinVoice: (channelId: string) => Promise<void>;
   leaveVoice: () => Promise<void>;
   toggleMute: () => Promise<void>;
@@ -70,6 +79,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeChannelId: null,
   messages: {},
   peers: [],
+  channelMembers: {},
   inVoiceChannel: false,
   muted: false,
   deafened: false,
@@ -129,14 +139,28 @@ export const useAppStore = create<AppState>((set, get) => ({
     await startDiscovery();
   },
 
+  announcePresence: async (channelId) => {
+    await announceChannelPresence(channelId);
+  },
+
+  loadChannelMembers: async (channelId) => {
+    const members = await getPeersInChannel(channelId);
+    set((s) => ({
+      channelMembers: { ...s.channelMembers, [channelId]: members },
+    }));
+  },
+
   joinVoice: async (channelId) => {
     await joinVoiceChannel(channelId);
     set({ inVoiceChannel: true });
+    // Announce that we've joined this channel so remote peers can update.
+    await announceChannelPresence(channelId).catch((e) => console.error("announce presence failed:", e));
   },
 
   leaveVoice: async () => {
     await leaveVoiceChannel();
     set({ inVoiceChannel: false, muted: false, deafened: false });
+    await announceChannelPresence(null).catch((e) => console.error("announce presence (leave) failed:", e));
   },
 
   toggleMute: async () => {
@@ -154,11 +178,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   startVideo: async (channelId, deviceId) => {
     await startVideoStream(channelId, deviceId);
     set({ videoActive: true });
+    await announceChannelPresence(channelId).catch((e) => console.error("announce presence (video start) failed:", e));
   },
 
   stopVideo: async () => {
     await stopVideoStream();
     set({ videoActive: false });
+    await announceChannelPresence(null).catch((e) => console.error("announce presence (video stop) failed:", e));
   },
 
   beginScreenShare: async (channelId, sourceId) => {

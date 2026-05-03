@@ -3,9 +3,11 @@
 //! Uses libp2p with:
 //!   - TCP transport + Noise encryption + Yamux multiplexing
 //!   - mDNS for local-network peer discovery
-//!   - GossipSub for pub/sub messaging (text channels, signalling)
+//!   - GossipSub for pub/sub messaging (text channels, signalling, presence)
 //!   - Identify for exchanging peer metadata
 //!   - Ping for keepalive
+
+pub mod identity;
 
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
@@ -14,12 +16,25 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux, Multiaddr, PeerId,
 };
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::commands::p2p::PeerInfo;
+
+/// GossipSub topic used to exchange channel-presence announcements.
+const PRESENCE_TOPIC: &str = "accord/presence";
+
+/// JSON payload published on [`PRESENCE_TOPIC`].
+#[derive(Serialize, Deserialize)]
+struct PresenceMessage {
+    peer_id: String,
+    /// `None` means the peer has left all channels.
+    channel_id: Option<String>,
+}
 
 /// Combined libp2p behaviour for Accord.
 #[derive(NetworkBehaviour)]
@@ -39,6 +54,8 @@ enum SwarmCommand {
 }
 
 type PeerMap = Arc<Mutex<HashMap<String, PeerInfo>>>;
+/// Maps peer_id -> current channel_id (None = not in any channel).
+type PresenceMap = Arc<Mutex<HashMap<String, Option<String>>>>;
 
 /// Handle to the local libp2p node.
 ///
@@ -48,13 +65,19 @@ pub struct P2PNode {
     local_peer_id: String,
     command_tx: UnboundedSender<SwarmCommand>,
     peers: PeerMap,
+    /// Channel presence: peer_id → channel_id (None = not in any channel).
+    channel_presence: PresenceMap,
     discovery_started: bool,
 }
 
 impl P2PNode {
-    /// Build a real libp2p swarm and spawn its Tokio-driven event-loop task.
-    pub fn new() -> Self {
-        let mut swarm = libp2p::SwarmBuilder::with_new_identity()
+    /// Build a real libp2p swarm using a persisted (or freshly generated)
+    /// Ed25519 keypair and spawn its Tokio-driven event-loop task.
+    pub fn new(app_dir: &Path) -> Self {
+        let keypair = identity::load_or_create_keypair(app_dir)
+            .expect("failed to load or create Ed25519 keypair");
+
+        let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
             .with_tcp(
                 tcp::Config::default(),
@@ -101,6 +124,16 @@ impl P2PNode {
             .listen_on("/ip4/0.0.0.0/tcp/0".parse().expect("valid multiaddr"))
             .expect("listen failed");
 
+        // Subscribe to the presence topic so we receive announcements from peers.
+        let presence_topic = gossipsub::IdentTopic::new(PRESENCE_TOPIC);
+        swarm
+            .behaviour_mut()
+            .gossipsub
+            .subscribe(&presence_topic)
+            .expect("subscribe to presence topic");
+
+        let presence_topic_hash = presence_topic.hash();
+
         let local_peer_id = swarm.local_peer_id().to_string();
 
         // Channel for sending commands to the swarm task (sync-compatible sender).
@@ -109,6 +142,10 @@ impl P2PNode {
         // Shared peer state updated by the event loop and read by Tauri commands.
         let peers: PeerMap = Arc::new(Mutex::new(HashMap::new()));
         let peers_task = Arc::clone(&peers);
+
+        // Channel presence map shared between the event loop and command handlers.
+        let channel_presence: PresenceMap = Arc::new(Mutex::new(HashMap::new()));
+        let presence_task = Arc::clone(&channel_presence);
 
         // Spawn the swarm event loop on the Tokio runtime that Tauri already provides.
         tokio::spawn(async move {
@@ -130,12 +167,14 @@ impl P2PNode {
                                         peer_id: peer_id.to_string(),
                                         address,
                                         connected: true,
+                                        channel_id: None,
                                     },
                                 );
                             }
                             SwarmEvent::ConnectionClosed { peer_id, .. } => {
                                 log::info!("Disconnected from {peer_id}");
                                 peers_task.lock().unwrap().remove(&peer_id.to_string());
+                                presence_task.lock().unwrap().remove(&peer_id.to_string());
                             }
                             SwarmEvent::Behaviour(AccordBehaviourEvent::Mdns(
                                 mdns::Event::Discovered(list),
@@ -169,11 +208,36 @@ impl P2PNode {
                                     ..
                                 },
                             )) => {
-                                log::debug!(
-                                    "GossipSub message from {propagation_source} on {:?}: {} bytes",
-                                    message.topic,
-                                    message.data.len()
-                                );
+                                if message.topic == presence_topic_hash {
+                                    // Parse channel-presence announcement.
+                                    if let Ok(pm) =
+                                        serde_json::from_slice::<PresenceMessage>(&message.data)
+                                    {
+                                        log::debug!(
+                                            "Presence from {}: channel={:?}",
+                                            pm.peer_id,
+                                            pm.channel_id
+                                        );
+                                        presence_task
+                                            .lock()
+                                            .unwrap()
+                                            .insert(pm.peer_id.clone(), pm.channel_id.clone());
+                                        // Mirror channel_id into the peer map.
+                                        if let Some(info) = peers_task
+                                            .lock()
+                                            .unwrap()
+                                            .get_mut(&pm.peer_id)
+                                        {
+                                            info.channel_id = pm.channel_id;
+                                        }
+                                    }
+                                } else {
+                                    log::debug!(
+                                        "GossipSub message from {propagation_source} on {:?}: {} bytes",
+                                        message.topic,
+                                        message.data.len()
+                                    );
+                                }
                             }
                             SwarmEvent::Behaviour(AccordBehaviourEvent::Identify(
                                 identify::Event::Received { peer_id, info, .. },
@@ -225,6 +289,7 @@ impl P2PNode {
             local_peer_id,
             command_tx,
             peers,
+            channel_presence,
             discovery_started: false,
         }
     }
@@ -263,6 +328,40 @@ impl P2PNode {
                 peer_id: p.peer_id.clone(),
                 address: p.address.clone(),
                 connected: p.connected,
+                channel_id: p.channel_id.clone(),
+            })
+            .collect()
+    }
+
+    /// Announce that the local peer has joined or left a channel.
+    /// Broadcasts a [`PresenceMessage`] on the [`PRESENCE_TOPIC`] gossipsub topic.
+    pub fn announce_presence(&self, channel_id: Option<String>) -> Result<()> {
+        log::info!("Announcing presence: channel={:?}", channel_id);
+        let msg = PresenceMessage {
+            peer_id: self.local_peer_id.clone(),
+            channel_id,
+        };
+        let data = serde_json::to_vec(&msg).map_err(|e| anyhow!("JSON encode error: {e}"))?;
+        self.command_tx
+            .send(SwarmCommand::Publish {
+                topic: PRESENCE_TOPIC.to_owned(),
+                data,
+            })
+            .map_err(|e| anyhow!("channel send error: {e}"))
+    }
+
+    /// Return all connected peers currently known to be in `channel_id`.
+    pub fn peers_in_channel(&self, channel_id: &str) -> Vec<PeerInfo> {
+        self.peers
+            .lock()
+            .expect("peers lock poisoned")
+            .values()
+            .filter(|p| p.connected && p.channel_id.as_deref() == Some(channel_id))
+            .map(|p| PeerInfo {
+                peer_id: p.peer_id.clone(),
+                address: p.address.clone(),
+                connected: p.connected,
+                channel_id: p.channel_id.clone(),
             })
             .collect()
     }
@@ -295,11 +394,5 @@ impl P2PNode {
         self.command_tx
             .send(SwarmCommand::Subscribe(topic.to_owned()))
             .map_err(|e| anyhow!("channel send error: {e}"))
-    }
-}
-
-impl Default for P2PNode {
-    fn default() -> Self {
-        Self::new()
     }
 }

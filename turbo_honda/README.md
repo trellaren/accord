@@ -264,7 +264,7 @@ cargo tauri build
 - [ ] Integrate Opus encoding/decoding for audio
 - [ ] Enable `video` feature with WebRTC / nokhwa camera capture
 - [ ] SQLite persistence for messages (sqlx)
-- [ ] User identity & key management (Ed25519 keypair persisted to disk)
+- [x] User identity & key management (Ed25519 keypair persisted to disk)
 - [ ] Screen share support
 - [ ] End-to-end encryption for text messages (noise protocol / age)
 - [x] System tray integration
