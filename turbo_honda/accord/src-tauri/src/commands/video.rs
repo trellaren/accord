@@ -18,12 +18,24 @@ pub struct ScreenSource {
 }
 
 /// Begin capturing and broadcasting the local video stream into a channel.
+/// Only allowed in "voice" or "video" channels.
 #[tauri::command]
 pub async fn start_video_stream(
     channel_id: String,
     device_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    let kind = state
+        .db
+        .get_channel_kind(&channel_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    if kind == "text" {
+        return Err(
+            "Video streaming is not allowed in text channels. Use a voice or video channel."
+                .to_string(),
+        );
+    }
     let mut session = state.voip.lock().map_err(|e| e.to_string())?;
     session
         .start_video(&channel_id, device_id.as_deref())
@@ -54,16 +66,27 @@ pub async fn list_screen_sources() -> Result<Vec<ScreenSource>, String> {
 }
 
 /// Notify the backend that the user has started screen-sharing into a channel.
+/// Only allowed in "voice" or "video" channels.
 ///
 /// The actual capture stream is managed by the frontend via `getDisplayMedia()`.
-/// The backend records the active state so it can signal peers via P2P and,
-/// in the future, relay encoded frames over WebRTC.
+/// The backend records the active state so it can signal peers via P2P.
 #[tauri::command]
 pub async fn start_screen_share(
     channel_id: String,
     source_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    let kind = state
+        .db
+        .get_channel_kind(&channel_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    if kind == "text" {
+        return Err(
+            "Screen sharing is not allowed in text channels. Use a voice or video channel."
+                .to_string(),
+        );
+    }
     let mut session = state.voip.lock().map_err(|e| e.to_string())?;
     session
         .start_screen_share(&channel_id, source_id.as_deref())

@@ -40,7 +40,9 @@ pub fn run() {
             let (p2p_node, db) = tauri::async_runtime::block_on(async {
                 let p2p_node = p2p::P2PNode::new(&app_dir);
                 let db = db::Db::new(&app_dir).await?;
-                db.bootstrap_defaults().await?;
+                // Bootstrap a default server, then seed its default channels.
+                let server_id = db.bootstrap_default_server().await?;
+                db.bootstrap_defaults(&server_id).await?;
                 anyhow::Ok((p2p_node, db))
             })
             .expect("failed to initialise P2P node and SQLite database");
@@ -142,6 +144,16 @@ pub fn run() {
             commands::channels::list_channels,
             commands::channels::send_message,
             commands::channels::get_messages,
+            // Servers
+            commands::servers::create_server,
+            commands::servers::list_servers,
+            commands::servers::join_server,
+            commands::servers::get_server_invite,
+            commands::servers::list_server_members,
+            commands::servers::remove_server_member,
+            // User profile
+            commands::user::get_user_profile,
+            commands::user::set_user_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running accord");

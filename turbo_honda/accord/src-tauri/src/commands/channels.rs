@@ -7,6 +7,8 @@ pub struct ChannelInfo {
     pub id: String,
     pub name: String,
     pub kind: String, // "text" | "voice" | "video"
+    /// The server this channel belongs to (None for legacy / unscoped channels).
+    pub server_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -18,16 +20,17 @@ pub struct MessagePayload {
     pub timestamp: String,
 }
 
-/// Create a new channel (text, voice, or video).
+/// Create a new channel (text, voice, or video) optionally scoped to a server.
 #[tauri::command]
 pub async fn create_channel(
     name: String,
     kind: String,
+    server_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<ChannelInfo, String> {
     state
         .db
-        .create_channel(name, kind)
+        .create_channel(name, kind, server_id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -45,10 +48,17 @@ pub async fn delete_channel(
         .map_err(|e| e.to_string())
 }
 
-/// List all channels.
+/// List all channels, optionally filtered by server id.
 #[tauri::command]
-pub async fn list_channels(state: State<'_, AppState>) -> Result<Vec<ChannelInfo>, String> {
-    state.db.list_channels().await.map_err(|e| e.to_string())
+pub async fn list_channels(
+    server_id: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<ChannelInfo>, String> {
+    state
+        .db
+        .list_channels(server_id.as_deref())
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Send a text message to a channel. The message is gossiped to all peers.

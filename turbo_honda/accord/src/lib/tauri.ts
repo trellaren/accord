@@ -6,6 +6,8 @@ export interface ChannelInfo {
   id: string;
   name: string;
   kind: "text" | "voice" | "video";
+  /** The server this channel belongs to, if any. */
+  server_id: string | null;
 }
 
 export interface MessagePayload {
@@ -22,6 +24,20 @@ export interface PeerInfo {
   connected: boolean;
   /** The channel id this peer is currently active in, if any. */
   channel_id: string | null;
+}
+
+export interface ServerInfo {
+  id: string;
+  name: string;
+  invite_code: string;
+  owner_peer_id: string;
+}
+
+export interface UserProfile {
+  peer_id: string;
+  display_name: string;
+  email: string;
+  timezone: string;
 }
 
 // ── P2P commands ──────────────────────────────────────────────────────────────
@@ -53,12 +69,16 @@ export function getPeersInChannel(channelId: string): Promise<PeerInfo[]> {
 
 // ── Channel commands ──────────────────────────────────────────────────────────
 
-export function listChannels(): Promise<ChannelInfo[]> {
-  return invoke("list_channels");
+export function listChannels(serverId?: string | null): Promise<ChannelInfo[]> {
+  return invoke("list_channels", { serverId: serverId ?? null });
 }
 
-export function createChannel(name: string, kind: string): Promise<ChannelInfo> {
-  return invoke("create_channel", { name, kind });
+export function createChannel(
+  name: string,
+  kind: string,
+  serverId?: string | null,
+): Promise<ChannelInfo> {
+  return invoke("create_channel", { name, kind, serverId: serverId ?? null });
 }
 
 export function deleteChannel(channelId: string): Promise<void> {
@@ -78,6 +98,49 @@ export function getMessages(
   limit?: number,
 ): Promise<MessagePayload[]> {
   return invoke("get_messages", { channelId, limit });
+}
+
+// ── Server commands ───────────────────────────────────────────────────────────
+
+export function createServer(name: string): Promise<ServerInfo> {
+  return invoke("create_server", { name });
+}
+
+export function listServers(): Promise<ServerInfo[]> {
+  return invoke("list_servers");
+}
+
+export function joinServer(inviteCode: string): Promise<ServerInfo> {
+  return invoke("join_server", { inviteCode });
+}
+
+export function getServerInvite(serverId: string): Promise<string> {
+  return invoke("get_server_invite", { serverId });
+}
+
+export function listServerMembers(serverId: string): Promise<string[]> {
+  return invoke("list_server_members", { serverId });
+}
+
+export function removeServerMember(
+  serverId: string,
+  peerId: string,
+): Promise<void> {
+  return invoke("remove_server_member", { serverId, peerId });
+}
+
+// ── User profile commands ─────────────────────────────────────────────────────
+
+export function getUserProfile(): Promise<UserProfile> {
+  return invoke("get_user_profile");
+}
+
+export function setUserProfile(
+  displayName: string,
+  email: string,
+  timezone: string,
+): Promise<UserProfile> {
+  return invoke("set_user_profile", { displayName, email, timezone });
 }
 
 // ── VoIP commands ─────────────────────────────────────────────────────────────
