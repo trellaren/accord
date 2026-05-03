@@ -22,7 +22,7 @@ export function ServerRail() {
         <button
           className={clsx(styles.serverBtn, activeServerId === null && styles.serverBtnActive)}
           onClick={() => {
-            selectServer("" as string);
+            selectServer(null);
             // Pass null to load channels without a server filter
             loadChannels(null);
           }}

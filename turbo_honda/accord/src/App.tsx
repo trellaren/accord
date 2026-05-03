@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
 import { TextChannel } from "./components/channels/TextChannel";
@@ -8,10 +8,13 @@ import { Welcome } from "./components/layout/Welcome";
 import { useAppStore } from "./store/useAppStore";
 
 export default function App() {
-  const { loadChannels, loadServers, loadUserProfile, initNode, localPeerId } =
-    useAppStore();
+  const localPeerId = useAppStore((s) => s.localPeerId);
 
+  // Run one-time app initialisation on mount.  We read the store actions from a
+  // ref so the effect doesn't re-run if the store instance changes.
+  const storeRef = useRef(useAppStore.getState());
   useEffect(() => {
+    const { initNode, loadServers, loadChannels, loadUserProfile } = storeRef.current;
     initNode().then(() => {
       loadServers().then(async () => {
         // After loading servers, load channels for the first server (if any).
@@ -24,8 +27,7 @@ export default function App() {
       });
       loadUserProfile();
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // intentionally empty – run once on mount
 
   return (
     <HashRouter>

@@ -71,7 +71,7 @@ interface AppState {
 
   // Server actions
   loadServers: () => Promise<void>;
-  selectServer: (id: string) => void;
+  selectServer: (id: string | null) => void;
   createNewServer: (name: string) => Promise<void>;
   joinExistingServer: (inviteCode: string) => Promise<void>;
   getInviteCode: (serverId: string) => Promise<string>;
