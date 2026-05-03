@@ -19,6 +19,10 @@ export function TextChannel() {
   const channelIdRef = useRef(channelId);
   channelIdRef.current = channelId;
 
+  // Keep a ref in sync so the unmount cleanup always sees the latest stream.
+  const shareStreamRef = useRef<MediaStream | null>(null);
+  shareStreamRef.current = shareStream;
+
   useEffect(() => {
     if (channelId) loadMessages(channelId);
   }, [channelId, loadMessages]);
@@ -26,13 +30,15 @@ export function TextChannel() {
   // Stop sharing when the user navigates away from the channel.
   useEffect(() => {
     return () => {
-      if (shareStream) {
-        shareStream.getTracks().forEach((t) => t.stop());
+      const stream = shareStreamRef.current;
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
         endScreenShare().catch(() => {/* ignore */});
       }
     };
+    // endScreenShare is a stable Zustand action; shareStreamRef is a ref (no re-run needed).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [endScreenShare]);
 
   async function handleSend(content: string) {
     if (!channelId) return;
