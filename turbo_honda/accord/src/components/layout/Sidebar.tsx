@@ -44,18 +44,21 @@ export function Sidebar() {
           title="Text Channels"
           channels={textChannels}
           activeId={activeChannelId}
+          peers={peers}
           onSelect={handleSelect}
         />
         <ChannelSection
           title="Voice Channels"
           channels={voiceChannels}
           activeId={activeChannelId}
+          peers={peers}
           onSelect={handleSelect}
         />
         <ChannelSection
           title="Video Channels"
           channels={videoChannels}
           activeId={activeChannelId}
+          peers={peers}
           onSelect={handleSelect}
         />
 
@@ -97,7 +100,7 @@ export function Sidebar() {
         )}
       </nav>
 
-      {/* Peer list */}
+      {/* Peer list (peers not in any channel) */}
       <div className={styles.peerSection}>
         <div className={styles.sectionHeader}>
           <span>Peers ({peers.length})</span>
@@ -115,6 +118,11 @@ export function Sidebar() {
             <span className={styles.peerName} title={p.peer_id}>
               {p.peer_id.slice(0, 10)}…
             </span>
+            {p.channel_id && (
+              <span className={styles.peerChannel} title={`In channel ${p.channel_id}`}>
+                📍
+              </span>
+            )}
           </div>
         ))}
         {peers.length === 0 && (
@@ -127,28 +135,44 @@ export function Sidebar() {
 
 // ── Sub-component ─────────────────────────────────────────────────────────
 
+import { PeerInfo } from "../../lib/tauri";
+
 interface ChannelSectionProps {
   title: string;
   channels: ChannelInfo[];
   activeId: string | null;
+  peers: PeerInfo[];
   onSelect: (c: ChannelInfo) => void;
 }
 
-function ChannelSection({ title, channels, activeId, onSelect }: ChannelSectionProps) {
+function ChannelSection({ title, channels, activeId, peers, onSelect }: ChannelSectionProps) {
   const icon: Record<string, string> = { text: "#", voice: "🔊", video: "📹" };
   return (
     <div className={styles.section}>
       <p className={styles.sectionTitle}>{title}</p>
-      {channels.map((c) => (
-        <button
-          key={c.id}
-          className={clsx(styles.channelBtn, c.id === activeId && styles.channelBtnActive)}
-          onClick={() => onSelect(c)}
-        >
-          <span className={styles.channelIcon}>{icon[c.kind] ?? "#"}</span>
-          <span>{c.name}</span>
-        </button>
-      ))}
+      {channels.map((c) => {
+        const membersHere = peers.filter((p) => p.channel_id === c.id);
+        return (
+          <div key={c.id}>
+            <button
+              className={clsx(styles.channelBtn, c.id === activeId && styles.channelBtnActive)}
+              onClick={() => onSelect(c)}
+            >
+              <span className={styles.channelIcon}>{icon[c.kind] ?? "#"}</span>
+              <span>{c.name}</span>
+            </button>
+            {/* Show peers currently active in this channel */}
+            {membersHere.map((p) => (
+              <div key={p.peer_id} className={styles.channelMember}>
+                <span className={styles.memberDot} />
+                <span className={styles.memberName} title={p.peer_id}>
+                  {p.peer_id.slice(0, 10)}…
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }

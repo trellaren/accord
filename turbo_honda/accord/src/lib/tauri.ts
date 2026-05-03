@@ -20,6 +20,8 @@ export interface PeerInfo {
   peer_id: string;
   address: string;
   connected: boolean;
+  /** The channel id this peer is currently active in, if any. */
+  channel_id: string | null;
 }
 
 // ── P2P commands ──────────────────────────────────────────────────────────────
@@ -34,6 +36,19 @@ export function listPeers(): Promise<PeerInfo[]> {
 
 export function startDiscovery(): Promise<void> {
   return invoke("start_discovery");
+}
+
+/**
+ * Announce that the local peer has joined (or left) a channel.
+ * Pass `null` to indicate the peer has left all channels.
+ */
+export function announceChannelPresence(channelId: string | null): Promise<void> {
+  return invoke("announce_channel_presence", { channelId });
+}
+
+/** Return all peers currently known to be in the given channel. */
+export function getPeersInChannel(channelId: string): Promise<PeerInfo[]> {
+  return invoke("get_peers_in_channel", { channelId });
 }
 
 // ── Channel commands ──────────────────────────────────────────────────────────

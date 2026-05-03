@@ -175,10 +175,40 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+}
+
+.peerChannel {
+  font-size: 11px;
+  flex-shrink: 0;
 }
 
 .noPeers {
   padding: 4px 16px 8px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* Members shown beneath their active channel */
+.channelMember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 16px 2px 32px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.memberDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+.memberName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

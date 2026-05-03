@@ -30,13 +30,14 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            let p2p_node = p2p::P2PNode::new();
-            let voip_session = voip::VoipSession::new();
-
             let app_dir = app
                 .path()
                 .app_data_dir()
                 .expect("could not resolve app data directory");
+
+            let p2p_node = p2p::P2PNode::new(&app_dir);
+            let voip_session = voip::VoipSession::new();
+
             let db = tauri::async_runtime::block_on(async {
                 let db = db::Db::new(&app_dir).await?;
                 db.bootstrap_defaults().await?;
@@ -120,6 +121,8 @@ pub fn run() {
             commands::p2p::disconnect_peer,
             commands::p2p::list_peers,
             commands::p2p::start_discovery,
+            commands::p2p::announce_channel_presence,
+            commands::p2p::get_peers_in_channel,
             // VoIP / Voice
             commands::voip::join_voice_channel,
             commands::voip::leave_voice_channel,

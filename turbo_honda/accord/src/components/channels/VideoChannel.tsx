@@ -9,6 +9,8 @@ export function VideoChannel() {
   const {
     channels,
     peers,
+    channelMembers,
+    loadChannelMembers,
     videoActive,
     muted,
     deafened,
@@ -19,6 +21,26 @@ export function VideoChannel() {
   } = useAppStore();
 
   const channel = channels.find((c) => c.id === channelId);
+
+  // Members in this specific channel (remote peers that announced their presence).
+  const membersHere = channelId ? (channelMembers[channelId] ?? []) : [];
+
+  // Also include peers whose channel_id matches (legacy / pre-announcement fallback).
+  const allVisiblePeers = [
+    ...membersHere,
+    ...peers.filter(
+      (p) => p.channel_id === channelId && !membersHere.some((m) => m.peer_id === p.peer_id),
+    ),
+  ];
+
+  // Periodically refresh the member list for this channel.
+  useEffect(() => {
+    if (!channelId) return;
+    loadChannelMembers(channelId);
+    const id = window.setInterval(() => loadChannelMembers(channelId), 5_000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelId]);
 
   useEffect(() => {
     return () => {
@@ -58,7 +80,7 @@ export function VideoChannel() {
         </div>
 
         {/* Remote peer tiles */}
-        {peers.map((p) => (
+        {allVisiblePeers.map((p) => (
           <div key={p.peer_id} className={styles.videoTile}>
             <div className={styles.videoPlaceholder}>
               {/* TODO: render actual remote stream in a <video> element */}
@@ -70,7 +92,7 @@ export function VideoChannel() {
           </div>
         ))}
 
-        {peers.length === 0 && (
+        {allVisiblePeers.length === 0 && (
           <div className={styles.emptyState}>
             <p>No peers in this channel yet.</p>
           </div>
