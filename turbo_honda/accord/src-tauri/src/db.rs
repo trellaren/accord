@@ -114,7 +114,11 @@ impl Db {
             .fetch_all(&self.pool)
             .await?
             .into_iter()
-            .any(|row| row.get::<String, _>("name") == "server_id");
+            .any(|row| {
+                row.try_get::<String, _>("name")
+                    .map(|n| n == "server_id")
+                    .unwrap_or(false)
+            });
 
         if !has_server_id {
             sqlx::query(
