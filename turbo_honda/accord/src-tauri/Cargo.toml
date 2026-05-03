@@ -56,6 +56,9 @@ webrtc = { version = "0.12", optional = true }
 # Audio capture/playback
 cpal = "0.15"
 
+# Opus audio codec (encoding / decoding for VoIP)
+audiopus = "0.2"
+
 # Logging
 log = "0.4"
 env_logger = "0.11"
