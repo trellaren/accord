@@ -499,6 +499,54 @@ impl Db {
         Ok(server)
     }
 
+    /// Insert a server record (from a remote invite) if it does not already exist,
+    /// then add `local_peer_id` as a member.
+    ///
+    /// This is used when accepting an invite from a remote peer who shared their
+    /// full join code, so the server's canonical `id` is preserved across all peers.
+    pub async fn join_server_from_invite(
+        &self,
+        server_id: &str,
+        name: &str,
+        invite_code: &str,
+        owner_peer_id: &str,
+        local_peer_id: &str,
+    ) -> Result<ServerInfo> {
+        // Create the server record if it doesn't already exist.
+        sqlx::query(
+            "INSERT OR IGNORE INTO servers (id, name, invite_code, owner_peer_id, avatar_url) VALUES (?, ?, ?, ?, '')",
+        )
+        .bind(server_id)
+        .bind(name)
+        .bind(invite_code)
+        .bind(owner_peer_id)
+        .execute(&self.pool)
+        .await?;
+
+        // Add the local peer as a member.
+        sqlx::query("INSERT OR IGNORE INTO server_members (server_id, peer_id) VALUES (?, ?)")
+            .bind(server_id)
+            .bind(local_peer_id)
+            .execute(&self.pool)
+            .await?;
+
+        // Fetch and return the final server record.
+        let row = sqlx::query(
+            "SELECT id, name, invite_code, owner_peer_id, avatar_url FROM servers WHERE id = ?",
+        )
+        .bind(server_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(ServerInfo {
+            id: row.get("id"),
+            name: row.get("name"),
+            invite_code: row.get("invite_code"),
+            owner_peer_id: row.get("owner_peer_id"),
+            avatar_url: row.get("avatar_url"),
+        })
+    }
+
     /// Return all peer ids that are members of the given server.
     pub async fn list_server_members(&self, server_id: &str) -> Result<Vec<String>> {
         let rows = sqlx::query("SELECT peer_id FROM server_members WHERE server_id = ?")
@@ -1115,6 +1163,40 @@ mod tests {
         let db = in_memory_db().await;
         let err = db.join_server("BADCODE1", "peer").await.unwrap_err();
         assert!(err.to_string().contains("Invalid invite code"));
+    }
+
+    #[tokio::test]
+    async fn test_join_server_from_invite_creates_and_joins() {
+        let db = in_memory_db().await;
+        // The joiner does not have the server locally; they got it from an invite.
+        let server_id = "550e8400-e29b-41d4-a716-446655440000";
+        let result = db
+            .join_server_from_invite(server_id, "Remote Server", "ABCD1234", "owner_peer", "joiner_peer")
+            .await
+            .unwrap();
+        assert_eq!(result.id, server_id);
+        assert_eq!(result.name, "Remote Server");
+        assert_eq!(result.invite_code, "ABCD1234");
+        assert_eq!(result.owner_peer_id, "owner_peer");
+
+        let members = db.list_server_members(server_id).await.unwrap();
+        assert!(members.contains(&"joiner_peer".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_join_server_from_invite_idempotent() {
+        let db = in_memory_db().await;
+        let server_id = "aaaabbbb-cccc-dddd-eeee-ffffffffffff";
+        // Calling twice must not error or create duplicate members.
+        db.join_server_from_invite(server_id, "Srv", "ZZZZ0000", "owner", "peer1")
+            .await
+            .unwrap();
+        db.join_server_from_invite(server_id, "Srv", "ZZZZ0000", "owner", "peer1")
+            .await
+            .unwrap();
+
+        let members = db.list_server_members(server_id).await.unwrap();
+        assert_eq!(members.iter().filter(|m| m.as_str() == "peer1").count(), 1);
     }
 
     #[tokio::test]

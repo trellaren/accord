@@ -118,6 +118,7 @@ pub async fn invite_peer_to_server(
         invite_code: server.invite_code,
         server_name: server.name,
         from_peer_id: local_peer_id,
+        server_id: server.id,
     };
 
     let node = state.p2p.lock().map_err(|e| e.to_string())?;
