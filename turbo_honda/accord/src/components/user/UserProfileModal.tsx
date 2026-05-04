@@ -34,15 +34,27 @@ interface Props {
 }
 
 export function UserProfileModal({ onClose }: Props) {
-  const { userProfile, loadUserProfile, saveUserProfile } = useAppStore();
+  const {
+    userProfile,
+    loadUserProfile,
+    saveUserProfile,
+    audioDevices,
+    videoDevices,
+    loadAudioDevices,
+    loadVideoDevices,
+  } = useAppStore();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [timezone, setTimezone] = useState("UTC");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [inputDeviceId, setInputDeviceId] = useState("");
+  const [outputDeviceId, setOutputDeviceId] = useState("");
+  const [videoDeviceId, setVideoDeviceId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  // Populate form from loaded profile.
+  // Populate form from loaded profile and load device lists.
   useEffect(() => {
     if (!userProfile) {
       loadUserProfile().catch(() => {});
@@ -50,15 +62,28 @@ export function UserProfileModal({ onClose }: Props) {
       setDisplayName(userProfile.display_name);
       setEmail(userProfile.email);
       setTimezone(userProfile.timezone || "UTC");
+      setAvatarUrl(userProfile.avatar_url || "");
+      setInputDeviceId(userProfile.input_device_id || "");
+      setOutputDeviceId(userProfile.output_device_id || "");
+      setVideoDeviceId(userProfile.video_device_id || "");
     }
   }, [userProfile, loadUserProfile]);
+
+  useEffect(() => {
+    loadAudioDevices().catch(() => {});
+    loadVideoDevices().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const inputDevices = audioDevices.filter((d) => d.is_input);
+  const outputDevices = audioDevices.filter((d) => !d.is_input);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      await saveUserProfile(displayName, email, timezone);
+      await saveUserProfile(displayName, email, timezone, avatarUrl, inputDeviceId, outputDeviceId, videoDeviceId);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -82,6 +107,33 @@ export function UserProfileModal({ onClose }: Props) {
         )}
 
         <form onSubmit={handleSubmit} className={styles.form}>
+          {/* Avatar preview + URL input */}
+          <div className={styles.avatarSection}>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt="Avatar"
+                className={styles.avatarPreview}
+                onError={() => setAvatarUrl("")}
+              />
+            ) : (
+              <div className={styles.avatarPlaceholder}>
+                {(displayName || "?").slice(0, 2).toUpperCase()}
+              </div>
+            )}
+            <div className={styles.avatarInput}>
+              <label className={styles.label}>Avatar URL</label>
+              <input
+                className={styles.input}
+                placeholder="https://example.com/avatar.png"
+                value={avatarUrl}
+                onChange={(e) => setAvatarUrl(e.target.value)}
+                disabled={loading}
+                maxLength={512}
+              />
+            </div>
+          </div>
+
           <div className={styles.field}>
             <label className={styles.label}>Display Name</label>
             <input
@@ -118,6 +170,60 @@ export function UserProfileModal({ onClose }: Props) {
               {TIMEZONES.map((tz) => (
                 <option key={tz} value={tz}>
                   {tz}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* ── Device settings ─────────────────────── */}
+          <p className={styles.sectionHeading}>Audio &amp; Video Devices</p>
+
+          <div className={styles.field}>
+            <label className={styles.label}>Microphone (Input)</label>
+            <select
+              className={styles.select}
+              value={inputDeviceId}
+              onChange={(e) => setInputDeviceId(e.target.value)}
+              disabled={loading}
+            >
+              <option value="">System Default</option>
+              {inputDevices.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className={styles.field}>
+            <label className={styles.label}>Speaker / Headphones (Output)</label>
+            <select
+              className={styles.select}
+              value={outputDeviceId}
+              onChange={(e) => setOutputDeviceId(e.target.value)}
+              disabled={loading}
+            >
+              <option value="">System Default</option>
+              {outputDevices.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className={styles.field}>
+            <label className={styles.label}>Webcam (Video Input)</label>
+            <select
+              className={styles.select}
+              value={videoDeviceId}
+              onChange={(e) => setVideoDeviceId(e.target.value)}
+              disabled={loading}
+            >
+              <option value="">System Default</option>
+              {videoDevices.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
                 </option>
               ))}
             </select>

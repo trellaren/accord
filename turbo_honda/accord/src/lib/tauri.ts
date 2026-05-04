@@ -5,7 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 export interface ChannelInfo {
   id: string;
   name: string;
-  kind: "text" | "voice" | "video";
+  kind: "text" | "voice";
   /** The server this channel belongs to, if any. */
   server_id: string | null;
 }
@@ -38,6 +38,14 @@ export interface UserProfile {
   display_name: string;
   email: string;
   timezone: string;
+  /** URL or data-URI for the user's avatar image. */
+  avatar_url: string;
+  /** ID of the preferred audio input device. */
+  input_device_id: string;
+  /** ID of the preferred audio output device. */
+  output_device_id: string;
+  /** ID of the preferred video (webcam) device. */
+  video_device_id: string;
 }
 
 // ── P2P commands ──────────────────────────────────────────────────────────────
@@ -139,11 +147,33 @@ export function setUserProfile(
   displayName: string,
   email: string,
   timezone: string,
+  avatarUrl: string,
+  inputDeviceId: string,
+  outputDeviceId: string,
+  videoDeviceId: string,
 ): Promise<UserProfile> {
-  return invoke("set_user_profile", { displayName, email, timezone });
+  return invoke("set_user_profile", {
+    displayName,
+    email,
+    timezone,
+    avatarUrl,
+    inputDeviceId,
+    outputDeviceId,
+    videoDeviceId,
+  });
 }
 
 // ── VoIP commands ─────────────────────────────────────────────────────────────
+
+export interface AudioDevice {
+  id: string;
+  name: string;
+  is_input: boolean;
+}
+
+export function listAudioDevices(): Promise<AudioDevice[]> {
+  return invoke("list_audio_devices");
+}
 
 export function joinVoiceChannel(channelId: string): Promise<void> {
   return invoke("join_voice_channel", { channelId });

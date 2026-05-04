@@ -18,11 +18,19 @@ export function Sidebar() {
     peers,
     discoverPeers,
     loadChannels,
+    inVoiceChannel,
+    voiceChannelId,
+    videoActive,
+    screenShareActive,
+    startVideo,
+    stopVideo,
+    beginScreenShare,
+    endScreenShare,
   } = useAppStore();
   const navigate = useNavigate();
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
-  const [newChannelKind, setNewChannelKind] = useState<"text" | "voice" | "video">("text");
+  const [newChannelKind, setNewChannelKind] = useState<"text" | "voice">("text");
   const [showInvite, setShowInvite] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
 
@@ -33,7 +41,6 @@ export function Sidebar() {
 
   const textChannels = visibleChannels.filter((c) => c.kind === "text");
   const voiceChannels = visibleChannels.filter((c) => c.kind === "voice");
-  const videoChannels = visibleChannels.filter((c) => c.kind === "video");
 
   const activeServer = servers.find((s) => s.id === activeServerId);
 
@@ -50,6 +57,22 @@ export function Sidebar() {
     setShowAddChannel(false);
     // Refresh channels for the current server.
     await loadChannels(activeServerId);
+  }
+
+  async function handleToggleScreenShare() {
+    if (screenShareActive) {
+      await endScreenShare();
+    } else if (voiceChannelId) {
+      await beginScreenShare(voiceChannelId);
+    }
+  }
+
+  async function handleToggleVideo() {
+    if (videoActive) {
+      await stopVideo();
+    } else if (voiceChannelId) {
+      await startVideo(voiceChannelId);
+    }
   }
 
   return (
@@ -96,13 +119,6 @@ export function Sidebar() {
             peers={peers}
             onSelect={handleSelect}
           />
-          <ChannelSection
-            title="Video Channels"
-            channels={videoChannels}
-            activeId={activeChannelId}
-            peers={peers}
-            onSelect={handleSelect}
-          />
 
           {/* Add channel */}
           <div className={styles.sectionHeader}>
@@ -128,12 +144,11 @@ export function Sidebar() {
                 className={styles.select}
                 value={newChannelKind}
                 onChange={(e) =>
-                  setNewChannelKind(e.target.value as "text" | "voice" | "video")
+                  setNewChannelKind(e.target.value as "text" | "voice")
                 }
               >
                 <option value="text">Text</option>
                 <option value="voice">Voice</option>
-                <option value="video">Video</option>
               </select>
               <button className={styles.submitBtn} type="submit">
                 Create
@@ -141,6 +156,33 @@ export function Sidebar() {
             </form>
           )}
         </nav>
+
+        {/* Media streaming actions — visible while connected to a voice channel */}
+        {inVoiceChannel && (
+          <div className={styles.mediaSection}>
+            <div className={styles.sectionHeader}>
+              <span>Streaming</span>
+            </div>
+            <div className={styles.mediaButtons}>
+              <button
+                className={clsx(styles.mediaBtn, videoActive && styles.mediaBtnActive)}
+                onClick={handleToggleVideo}
+                title={videoActive ? "Stop Video" : "Start Video"}
+              >
+                <span className={styles.mediaBtnIcon}>{videoActive ? "📹" : "📷"}</span>
+                <span>{videoActive ? "Stop Video" : "Start Video"}</span>
+              </button>
+              <button
+                className={clsx(styles.mediaBtn, screenShareActive && styles.mediaBtnActive)}
+                onClick={handleToggleScreenShare}
+                title={screenShareActive ? "Stop Screen Share" : "Share Screen"}
+              >
+                <span className={styles.mediaBtnIcon}>{screenShareActive ? "🖥️" : "🖥"}</span>
+                <span>{screenShareActive ? "Stop Sharing" : "Share Screen"}</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Peer list */}
         <div className={styles.peerSection}>
@@ -202,7 +244,7 @@ interface ChannelSectionProps {
 }
 
 function ChannelSection({ title, channels, activeId, peers, onSelect }: ChannelSectionProps) {
-  const icon: Record<string, string> = { text: "#", voice: "🔊", video: "📹" };
+  const icon: Record<string, string> = { text: "#", voice: "🔊" };
   return (
     <div className={styles.section}>
       <p className={styles.sectionTitle}>{title}</p>
