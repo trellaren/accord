@@ -32,7 +32,7 @@ pub async fn start_video_stream(
         .map_err(|e| e.to_string())?;
     if kind == "text" {
         return Err(
-            "Video streaming is not allowed in text channels. Use a voice or video channel."
+            "Video streaming is not allowed in text channels. Use a voice channel."
                 .to_string(),
         );
     }
@@ -83,7 +83,7 @@ pub async fn start_screen_share(
         .map_err(|e| e.to_string())?;
     if kind == "text" {
         return Err(
-            "Screen sharing is not allowed in text channels. Use a voice or video channel."
+            "Screen sharing is not allowed in text channels. Use a voice channel."
                 .to_string(),
         );
     }

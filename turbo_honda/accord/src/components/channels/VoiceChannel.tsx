@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import clsx from "clsx";
 import { useAppStore } from "../../store/useAppStore";
+import { ScreenSharePanel } from "./ScreenSharePanel";
 import styles from "./VoiceChannel.module.css";
 
 export function VoiceChannel() {
@@ -14,13 +15,22 @@ export function VoiceChannel() {
     inVoiceChannel,
     muted,
     deafened,
+    videoActive,
+    screenShareActive,
     joinVoice,
     leaveVoice,
     toggleMute,
     toggleDeafen,
+    startVideo,
+    stopVideo,
+    beginScreenShare,
+    endScreenShare,
   } = useAppStore();
 
   const channel = channels.find((c) => c.id === channelId);
+
+  // Local screen-share MediaStream (captured in the browser).
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
 
   // Members in this specific channel (remote peers that announced their presence)
   const membersHere = channelId ? (channelMembers[channelId] ?? []) : [];
@@ -53,6 +63,34 @@ export function VoiceChannel() {
     ),
   ];
 
+  const handleStopScreenShare = useCallback(async () => {
+    screenStream?.getTracks().forEach((t) => t.stop());
+    setScreenStream(null);
+    if (screenShareActive) await endScreenShare();
+  }, [screenStream, screenShareActive, endScreenShare]);
+
+  async function handleToggleScreenShare() {
+    if (screenShareActive || screenStream) {
+      await handleStopScreenShare();
+    } else if (channelId) {
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        setScreenStream(stream);
+        await beginScreenShare(channelId);
+      } catch {
+        // User cancelled or permission denied — no error shown.
+      }
+    }
+  }
+
+  async function handleToggleVideo() {
+    if (videoActive) {
+      await stopVideo();
+    } else if (channelId) {
+      await startVideo(channelId);
+    }
+  }
+
   return (
     <div className={styles.root}>
       <header className={styles.header}>
@@ -60,6 +98,11 @@ export function VoiceChannel() {
         <span className={styles.name}>{channel?.name ?? "unknown"}</span>
         {inVoiceChannel && <span className={styles.badge}>LIVE</span>}
       </header>
+
+      {/* Active screen share panel */}
+      {screenStream && (
+        <ScreenSharePanel stream={screenStream} onStop={handleStopScreenShare} />
+      )}
 
       {/* Connected peers grid */}
       <div className={styles.peerGrid}>
@@ -82,6 +125,20 @@ export function VoiceChannel() {
 
       {/* Controls */}
       <div className={styles.controls}>
+        <button
+          className={clsx(styles.controlBtn, videoActive && styles.controlBtnActive)}
+          onClick={handleToggleVideo}
+          title={videoActive ? "Stop Video" : "Start Video"}
+        >
+          {videoActive ? "📹" : "📷"}
+        </button>
+        <button
+          className={clsx(styles.controlBtn, (screenShareActive || !!screenStream) && styles.controlBtnActive)}
+          onClick={handleToggleScreenShare}
+          title={(screenShareActive || !!screenStream) ? "Stop Screen Share" : "Share Screen"}
+        >
+          🖥
+        </button>
         <button
           className={clsx(styles.controlBtn, muted && styles.controlBtnActive)}
           onClick={toggleMute}

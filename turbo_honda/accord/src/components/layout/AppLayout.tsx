@@ -15,6 +15,8 @@ export function AppLayout() {
     userProfile?.display_name?.trim() ||
     (localPeerId ? localPeerId.slice(0, 8) + "…" : "Me");
 
+  const avatarUrl = userProfile?.avatar_url?.trim() || "";
+
   return (
     <div className={styles.root}>
       {/* Far-left server rail */}
@@ -31,9 +33,18 @@ export function AppLayout() {
 
         {/* User area at the bottom */}
         <div className={styles.userArea}>
-          <div className={styles.userAvatar}>
-            {displayLabel.slice(0, 2).toUpperCase()}
-          </div>
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={displayLabel}
+              className={styles.userAvatarImg}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <div className={styles.userAvatar}>
+              {displayLabel.slice(0, 2).toUpperCase()}
+            </div>
+          )}
           <span className={styles.userName}>{displayLabel}</span>
           <button
             className={styles.settingsBtn}

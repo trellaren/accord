@@ -86,14 +86,42 @@ impl Db {
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS user_profile (
-                peer_id      TEXT PRIMARY KEY,
-                display_name TEXT NOT NULL DEFAULT '',
-                email        TEXT NOT NULL DEFAULT '',
-                timezone     TEXT NOT NULL DEFAULT 'UTC'
+                peer_id          TEXT PRIMARY KEY,
+                display_name     TEXT NOT NULL DEFAULT '',
+                email            TEXT NOT NULL DEFAULT '',
+                timezone         TEXT NOT NULL DEFAULT 'UTC',
+                avatar_url       TEXT NOT NULL DEFAULT '',
+                input_device_id  TEXT NOT NULL DEFAULT '',
+                output_device_id TEXT NOT NULL DEFAULT '',
+                video_device_id  TEXT NOT NULL DEFAULT ''
             )",
         )
         .execute(&self.pool)
         .await?;
+
+        // Migrate older databases that lack the new profile columns.
+        let profile_columns: Vec<String> = sqlx::query("PRAGMA table_info(user_profile)")
+            .fetch_all(&self.pool)
+            .await?
+            .into_iter()
+            .filter_map(|row| row.try_get::<String, _>("name").ok())
+            .collect();
+
+        let new_columns = [
+            ("avatar_url",       "TEXT NOT NULL DEFAULT ''"),
+            ("input_device_id",  "TEXT NOT NULL DEFAULT ''"),
+            ("output_device_id", "TEXT NOT NULL DEFAULT ''"),
+            ("video_device_id",  "TEXT NOT NULL DEFAULT ''"),
+        ];
+        for (col, def) in new_columns {
+            if !profile_columns.contains(&col.to_string()) {
+                sqlx::query(&format!(
+                    "ALTER TABLE user_profile ADD COLUMN {col} {def}"
+                ))
+                .execute(&self.pool)
+                .await?;
+            }
+        }
 
         // ── Channels ──────────────────────────────────────────────────────────
 
@@ -159,9 +187,9 @@ impl Db {
         kind: String,
         server_id: Option<String>,
     ) -> Result<ChannelInfo> {
-        if !["text", "voice", "video"].contains(&kind.as_str()) {
+        if !["text", "voice"].contains(&kind.as_str()) {
             return Err(anyhow!(
-                "Invalid channel kind '{kind}'. Use text, voice, or video."
+                "Invalid channel kind '{kind}'. Use text or voice."
             ));
         }
         // If a server_id is given, verify it exists.
@@ -236,10 +264,10 @@ impl Db {
             .collect())
     }
 
-    /// Insert the three default channels under `server_id` if no channels are present
+    /// Insert the two default channels under `server_id` if no channels are present
     /// for that server yet.
     pub async fn bootstrap_defaults(&self, server_id: &str) -> Result<()> {
-        for (name, kind) in [("general", "text"), ("voice", "voice"), ("video", "video")] {
+        for (name, kind) in [("general", "text"), ("voice", "voice")] {
             sqlx::query(
                 "INSERT INTO channels (id, name, kind, server_id)
                  SELECT ?, ?, ?, ?
@@ -453,7 +481,8 @@ impl Db {
     /// Return the stored user profile for `peer_id`, or a default one.
     pub async fn get_user_profile(&self, peer_id: &str) -> Result<UserProfile> {
         let row = sqlx::query(
-            "SELECT peer_id, display_name, email, timezone
+            "SELECT peer_id, display_name, email, timezone,
+                    avatar_url, input_device_id, output_device_id, video_device_id
              FROM user_profile WHERE peer_id = ?",
         )
         .bind(peer_id)
@@ -465,6 +494,10 @@ impl Db {
                 display_name: row.get("display_name"),
                 email: row.get("email"),
                 timezone: row.get("timezone"),
+                avatar_url: row.get("avatar_url"),
+                input_device_id: row.get("input_device_id"),
+                output_device_id: row.get("output_device_id"),
+                video_device_id: row.get("video_device_id"),
             })
         } else {
             Ok(UserProfile {
@@ -472,6 +505,10 @@ impl Db {
                 display_name: String::new(),
                 email: String::new(),
                 timezone: "UTC".to_string(),
+                avatar_url: String::new(),
+                input_device_id: String::new(),
+                output_device_id: String::new(),
+                video_device_id: String::new(),
             })
         }
     }
@@ -483,22 +520,44 @@ impl Db {
         display_name: String,
         email: String,
         timezone: String,
+        avatar_url: String,
+        input_device_id: String,
+        output_device_id: String,
+        video_device_id: String,
     ) -> Result<UserProfile> {
         sqlx::query(
-            "INSERT INTO user_profile (peer_id, display_name, email, timezone)
-             VALUES (?, ?, ?, ?)
+            "INSERT INTO user_profile
+                (peer_id, display_name, email, timezone, avatar_url, input_device_id, output_device_id, video_device_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(peer_id) DO UPDATE SET
-               display_name = excluded.display_name,
-               email        = excluded.email,
-               timezone     = excluded.timezone",
+               display_name     = excluded.display_name,
+               email            = excluded.email,
+               timezone         = excluded.timezone,
+               avatar_url       = excluded.avatar_url,
+               input_device_id  = excluded.input_device_id,
+               output_device_id = excluded.output_device_id,
+               video_device_id  = excluded.video_device_id",
         )
         .bind(&peer_id)
         .bind(&display_name)
         .bind(&email)
         .bind(&timezone)
+        .bind(&avatar_url)
+        .bind(&input_device_id)
+        .bind(&output_device_id)
+        .bind(&video_device_id)
         .execute(&self.pool)
         .await?;
-        Ok(UserProfile { peer_id, display_name, email, timezone })
+        Ok(UserProfile {
+            peer_id,
+            display_name,
+            email,
+            timezone,
+            avatar_url,
+            input_device_id,
+            output_device_id,
+            video_device_id,
+        })
     }
 }
 
@@ -545,6 +604,13 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.to_string().contains("Invalid channel kind"));
+
+        // "video" is no longer a valid kind.
+        let err2 = db
+            .create_channel("video-ch".into(), "video".into(), None)
+            .await
+            .unwrap_err();
+        assert!(err2.to_string().contains("Invalid channel kind"));
     }
 
     #[tokio::test]
@@ -643,12 +709,11 @@ mod tests {
         db.bootstrap_defaults(&sid).await.unwrap();
 
         let channels = db.list_channels(Some(&sid)).await.unwrap();
-        assert_eq!(channels.len(), 3);
+        assert_eq!(channels.len(), 2);
 
         let names: Vec<&str> = channels.iter().map(|c| c.name.as_str()).collect();
         assert!(names.contains(&"general"));
         assert!(names.contains(&"voice"));
-        assert!(names.contains(&"video"));
     }
 
     #[tokio::test]
@@ -660,7 +725,7 @@ mod tests {
         db.bootstrap_defaults(&sid).await.unwrap();
 
         let channels = db.list_channels(Some(&sid)).await.unwrap();
-        assert_eq!(channels.len(), 3);
+        assert_eq!(channels.len(), 2);
     }
 
     // ── Server tests ──────────────────────────────────────────────────────────
@@ -751,6 +816,10 @@ mod tests {
             "Alice".into(),
             "alice@example.com".into(),
             "America/New_York".into(),
+            "https://example.com/avatar.png".into(),
+            "mic_default".into(),
+            "speakers_default".into(),
+            "cam_default".into(),
         )
         .await
         .unwrap();
@@ -759,6 +828,10 @@ mod tests {
         assert_eq!(profile.display_name, "Alice");
         assert_eq!(profile.email, "alice@example.com");
         assert_eq!(profile.timezone, "America/New_York");
+        assert_eq!(profile.avatar_url, "https://example.com/avatar.png");
+        assert_eq!(profile.input_device_id, "mic_default");
+        assert_eq!(profile.output_device_id, "speakers_default");
+        assert_eq!(profile.video_device_id, "cam_default");
     }
 
     #[tokio::test]

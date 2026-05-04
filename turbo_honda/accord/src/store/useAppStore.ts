@@ -5,6 +5,8 @@ import {
   PeerInfo,
   ServerInfo,
   UserProfile,
+  AudioDevice,
+  VideoDevice,
   getLocalPeerId,
   listChannels,
   listPeers,
@@ -17,8 +19,10 @@ import {
   leaveVoiceChannel,
   setMute,
   setDeafen,
+  listAudioDevices,
   startVideoStream,
   stopVideoStream,
+  listVideoDevices,
   startScreenShare,
   stopScreenShare,
   announceChannelPresence,
@@ -56,12 +60,17 @@ interface AppState {
 
   // VoIP state
   inVoiceChannel: boolean;
+  voiceChannelId: string | null;
   muted: boolean;
   deafened: boolean;
 
   // Video state
   videoActive: boolean;
   screenShareActive: boolean;
+
+  // Available devices
+  audioDevices: AudioDevice[];
+  videoDevices: VideoDevice[];
 
   // User profile
   userProfile: UserProfile | null;
@@ -104,9 +113,21 @@ interface AppState {
   beginScreenShare: (channelId: string, sourceId?: string) => Promise<void>;
   endScreenShare: () => Promise<void>;
 
+  // Device enumeration
+  loadAudioDevices: () => Promise<void>;
+  loadVideoDevices: () => Promise<void>;
+
   // User profile actions
   loadUserProfile: () => Promise<void>;
-  saveUserProfile: (displayName: string, email: string, timezone: string) => Promise<void>;
+  saveUserProfile: (
+    displayName: string,
+    email: string,
+    timezone: string,
+    avatarUrl: string,
+    inputDeviceId: string,
+    outputDeviceId: string,
+    videoDeviceId: string,
+  ) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -119,10 +140,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   peers: [],
   channelMembers: {},
   inVoiceChannel: false,
+  voiceChannelId: null,
   muted: false,
   deafened: false,
   videoActive: false,
   screenShareActive: false,
+  audioDevices: [],
+  videoDevices: [],
   userProfile: null,
 
   initNode: async () => {
@@ -236,14 +260,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   joinVoice: async (channelId) => {
     await joinVoiceChannel(channelId);
-    set({ inVoiceChannel: true });
+    set({ inVoiceChannel: true, voiceChannelId: channelId });
     // Announce that we've joined this channel so remote peers can update.
     await announceChannelPresence(channelId).catch((e) => console.error("announce presence failed:", e));
   },
 
   leaveVoice: async () => {
     await leaveVoiceChannel();
-    set({ inVoiceChannel: false, muted: false, deafened: false });
+    set({ inVoiceChannel: false, voiceChannelId: null, muted: false, deafened: false });
     await announceChannelPresence(null).catch((e) => console.error("announce presence (leave) failed:", e));
   },
 
@@ -288,8 +312,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ userProfile });
   },
 
-  saveUserProfile: async (displayName, email, timezone) => {
-    const userProfile = await setUserProfile(displayName, email, timezone);
+  saveUserProfile: async (displayName, email, timezone, avatarUrl, inputDeviceId, outputDeviceId, videoDeviceId) => {
+    const userProfile = await setUserProfile(displayName, email, timezone, avatarUrl, inputDeviceId, outputDeviceId, videoDeviceId);
     set({ userProfile });
+  },
+
+  // ── Device enumeration ────────────────────────────────────────────────────
+
+  loadAudioDevices: async () => {
+    const audioDevices = await listAudioDevices();
+    set({ audioDevices });
+  },
+
+  loadVideoDevices: async () => {
+    const videoDevices = await listVideoDevices();
+    set({ videoDevices });
   },
 }));

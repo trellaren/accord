@@ -7,11 +7,11 @@ interface ScreenSharePanelProps {
 }
 
 /**
- * Inline stream viewer embedded inside a text channel.
+ * Inline stream viewer embedded inside a voice channel.
  *
  * Renders the `MediaStream` obtained from `navigator.mediaDevices.getDisplayMedia()`
  * directly in the channel view so viewers can watch gameplay / application
- * sharing without leaving the chat.
+ * sharing without leaving the voice channel.
  */
 export function ScreenSharePanel({ stream, onStop }: ScreenSharePanelProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
