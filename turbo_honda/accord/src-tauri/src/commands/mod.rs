@@ -1,4 +1,5 @@
 pub mod channels;
+pub mod logging;
 pub mod p2p;
 pub mod roles;
 pub mod servers;

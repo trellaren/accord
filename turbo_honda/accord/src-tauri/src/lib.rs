@@ -7,6 +7,7 @@ use tauri::{
 mod commands;
 mod crypto;
 mod db;
+mod logger;
 mod p2p;
 mod voip;
 
@@ -23,11 +24,14 @@ pub struct AppState {
     /// 32-byte master key derived from the local Ed25519 private key.
     /// Used to derive per-channel encryption keys for message E2E encryption.
     pub message_key: [u8; 32],
+    /// In-memory log store polled by the debug window.
+    pub log_store: logger::LogStore,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::init();
+    // Initialise the custom logger and obtain the shared log store.
+    let log_store = logger::init();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -70,6 +74,7 @@ pub fn run() {
                 voip: std::sync::Mutex::new(voip_session),
                 db,
                 message_key,
+                log_store,
             });
 
             // ── System tray ────────────────────────────────────────────────
@@ -189,6 +194,8 @@ pub fn run() {
             // User profile
             commands::user::get_user_profile,
             commands::user::set_user_profile,
+            // Logging / debug
+            commands::logging::get_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running accord");

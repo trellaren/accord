@@ -29,11 +29,17 @@ pub async fn create_channel(
     server_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<ChannelInfo, String> {
-    state
+    log::info!("Creating channel name={name:?} kind={kind:?} server_id={server_id:?}");
+    let result = state
         .db
-        .create_channel(name, kind, server_id)
+        .create_channel(name.clone(), kind.clone(), server_id.clone())
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    match &result {
+        Ok(ch) => log::debug!("Channel created id={}", ch.id),
+        Err(e) => log::error!("Failed to create channel name={name:?}: {e}"),
+    }
+    result
 }
 
 /// Delete a channel by id.
@@ -42,11 +48,16 @@ pub async fn delete_channel(
     channel_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    state
+    log::info!("Deleting channel id={channel_id}");
+    let result = state
         .db
         .delete_channel(&channel_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    if let Err(e) = &result {
+        log::error!("Failed to delete channel id={channel_id}: {e}");
+    }
+    result
 }
 
 /// List all channels, optionally filtered by server id.
@@ -55,6 +66,7 @@ pub async fn list_channels(
     server_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Vec<ChannelInfo>, String> {
+    log::debug!("Listing channels server_id={server_id:?}");
     state
         .db
         .list_channels(server_id.as_deref())
@@ -74,6 +86,10 @@ pub async fn send_message(
     author_peer_id: String,
     state: State<'_, AppState>,
 ) -> Result<MessagePayload, String> {
+    log::debug!(
+        "Sending message channel_id={channel_id} author={author_peer_id} len={}",
+        content.len()
+    );
     let passphrase =
         crypto::derive_channel_passphrase(&state.message_key, &channel_id);
     let encrypted = crypto::encrypt_message(&passphrase, &content)
@@ -81,10 +97,11 @@ pub async fn send_message(
 
     let mut msg = state
         .db
-        .send_message(channel_id, encrypted, author_peer_id)
+        .send_message(channel_id.clone(), encrypted, author_peer_id)
         .await
         .map_err(|e| e.to_string())?;
 
+    log::debug!("Message stored id={} channel={channel_id}", msg.id);
     // Return plaintext to the UI.
     msg.content = content;
     Ok(msg)
@@ -101,6 +118,7 @@ pub async fn get_messages(
     limit: Option<u32>,
     state: State<'_, AppState>,
 ) -> Result<Vec<MessagePayload>, String> {
+    log::debug!("Fetching messages channel_id={channel_id} limit={limit:?}");
     let passphrase =
         crypto::derive_channel_passphrase(&state.message_key, &channel_id);
 
@@ -109,6 +127,11 @@ pub async fn get_messages(
         .get_messages(&channel_id, limit.unwrap_or(50))
         .await
         .map_err(|e| e.to_string())?;
+
+    log::debug!(
+        "Fetched {} messages for channel {channel_id}",
+        messages.len()
+    );
 
     for msg in &mut messages {
         if let Ok(plaintext) = crypto::decrypt_message(&passphrase, &msg.content) {

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
-import { Settings } from "lucide-react";
+import { Settings, Bug } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { ServerRail } from "../servers/ServerRail";
 import { MemberPanel } from "./MemberPanel";
 import { VoiceStatusBar } from "./VoiceStatusBar";
 import { UserProfileModal } from "../user/UserProfileModal";
 import { ServerInviteModal } from "../servers/ServerInviteModal";
+import { DebugWindow } from "./DebugWindow";
 import { useAppStore } from "../../store/useAppStore";
 import { useKeybinds } from "../../lib/useKeybinds";
 import styles from "./AppLayout.module.css";
@@ -15,6 +16,7 @@ export function AppLayout() {
   useKeybinds();
   const { userProfile, localPeerId, pendingInvites } = useAppStore();
   const [showProfile, setShowProfile] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
 
   // Display name: prefer set display name, fall back to truncated peer ID.
   const displayLabel =
@@ -57,6 +59,13 @@ export function AppLayout() {
           <span className={styles.userName}>{displayLabel}</span>
           <button
             className={styles.settingsBtn}
+            onClick={() => setShowDebug((v) => !v)}
+            title="Debug Logs"
+          >
+            <Bug size={16} />
+          </button>
+          <button
+            className={styles.settingsBtn}
             onClick={() => setShowProfile(true)}
             title="User Settings"
           >
@@ -70,7 +79,7 @@ export function AppLayout() {
 
       {showProfile && <UserProfileModal onClose={() => setShowProfile(false)} />}
       {pendingInvites.length > 0 && <ServerInviteModal invites={pendingInvites} />}
+      {showDebug && <DebugWindow onClose={() => setShowDebug(false)} />}
     </div>
   );
 }
-

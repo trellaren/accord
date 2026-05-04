@@ -15,13 +15,19 @@ pub async fn join_voice_channel(
     channel_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    log::info!("Joining voice channel channel_id={channel_id}");
     let mut session = state.voip.lock().map_err(|e| e.to_string())?;
-    session.join(&channel_id).map_err(|e| e.to_string())
+    let result = session.join(&channel_id).map_err(|e| e.to_string());
+    if let Err(e) = &result {
+        log::error!("Failed to join voice channel channel_id={channel_id}: {e}");
+    }
+    result
 }
 
 /// Leave the currently active voice channel.
 #[tauri::command]
 pub async fn leave_voice_channel(state: State<'_, AppState>) -> Result<(), String> {
+    log::info!("Leaving voice channel");
     let mut session = state.voip.lock().map_err(|e| e.to_string())?;
     session.leave().map_err(|e| e.to_string())
 }
@@ -29,6 +35,7 @@ pub async fn leave_voice_channel(state: State<'_, AppState>) -> Result<(), Strin
 /// Mute or unmute the local microphone.
 #[tauri::command]
 pub async fn set_mute(muted: bool, state: State<'_, AppState>) -> Result<(), String> {
+    log::debug!("set_mute muted={muted}");
     let mut session = state.voip.lock().map_err(|e| e.to_string())?;
     session.set_mute(muted).map_err(|e| e.to_string())
 }
@@ -36,6 +43,7 @@ pub async fn set_mute(muted: bool, state: State<'_, AppState>) -> Result<(), Str
 /// Deafen or undeafen (mute all incoming audio).
 #[tauri::command]
 pub async fn set_deafen(deafened: bool, state: State<'_, AppState>) -> Result<(), String> {
+    log::debug!("set_deafen deafened={deafened}");
     let mut session = state.voip.lock().map_err(|e| e.to_string())?;
     session.set_deafen(deafened).map_err(|e| e.to_string())
 }
@@ -43,5 +51,6 @@ pub async fn set_deafen(deafened: bool, state: State<'_, AppState>) -> Result<()
 /// Enumerate available audio input and output devices.
 #[tauri::command]
 pub async fn list_audio_devices() -> Result<Vec<AudioDevice>, String> {
+    log::debug!("Enumerating audio devices");
     crate::voip::VoipSession::enumerate_devices().map_err(|e| e.to_string())
 }

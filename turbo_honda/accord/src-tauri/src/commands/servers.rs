@@ -19,20 +19,27 @@ pub async fn create_server(
     name: String,
     state: State<'_, AppState>,
 ) -> Result<ServerInfo, String> {
+    log::info!("Creating server name={name:?}");
     let owner_peer_id = {
         let node = state.p2p.lock().map_err(|e| e.to_string())?;
         node.local_peer_id()
     };
-    state
+    let result = state
         .db
-        .create_server(name, owner_peer_id)
+        .create_server(name.clone(), owner_peer_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    match &result {
+        Ok(s) => log::debug!("Server created id={}", s.id),
+        Err(e) => log::error!("Failed to create server name={name:?}: {e}"),
+    }
+    result
 }
 
 /// Return all servers stored locally.
 #[tauri::command]
 pub async fn list_servers(state: State<'_, AppState>) -> Result<Vec<ServerInfo>, String> {
+    log::debug!("Listing servers");
     state.db.list_servers().await.map_err(|e| e.to_string())
 }
 
@@ -42,15 +49,21 @@ pub async fn join_server(
     invite_code: String,
     state: State<'_, AppState>,
 ) -> Result<ServerInfo, String> {
+    log::info!("Joining server invite_code={invite_code:?}");
     let peer_id = {
         let node = state.p2p.lock().map_err(|e| e.to_string())?;
         node.local_peer_id()
     };
-    state
+    let result = state
         .db
         .join_server(&invite_code, &peer_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    match &result {
+        Ok(s) => log::info!("Joined server id={} name={:?}", s.id, s.name),
+        Err(e) => log::error!("Failed to join server invite={invite_code:?}: {e}"),
+    }
+    result
 }
 
 /// Return the invite code of a server (only works if we own the server or are a member).
@@ -59,6 +72,7 @@ pub async fn get_server_invite(
     server_id: String,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
+    log::debug!("Getting invite code for server_id={server_id}");
     let servers = state.db.list_servers().await.map_err(|e| e.to_string())?;
     servers
         .into_iter()
@@ -73,6 +87,7 @@ pub async fn list_server_members(
     server_id: String,
     state: State<'_, AppState>,
 ) -> Result<Vec<String>, String> {
+    log::debug!("Listing members for server_id={server_id}");
     state
         .db
         .list_server_members(&server_id)
@@ -87,6 +102,7 @@ pub async fn remove_server_member(
     peer_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    log::info!("Removing member peer_id={peer_id} from server_id={server_id}");
     let local_peer_id = {
         let node = state.p2p.lock().map_err(|e| e.to_string())?;
         node.local_peer_id()
@@ -98,6 +114,7 @@ pub async fn remove_server_member(
         .find(|s| s.id == server_id)
         .ok_or_else(|| format!("Server '{server_id}' not found"))?;
     if server.owner_peer_id != local_peer_id {
+        log::warn!("Unauthorized remove_server_member attempt on server_id={server_id}");
         return Err("Only the server owner can remove members".to_string());
     }
     state
@@ -114,6 +131,7 @@ pub async fn leave_server(
     server_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    log::info!("Leaving server server_id={server_id}");
     let local_peer_id = {
         let node = state.p2p.lock().map_err(|e| e.to_string())?;
         node.local_peer_id()
@@ -141,6 +159,7 @@ pub async fn update_server(
     avatar_url: String,
     state: State<'_, AppState>,
 ) -> Result<ServerInfo, String> {
+    log::info!("Updating server server_id={server_id} name={name:?}");
     let local_peer_id = {
         let node = state.p2p.lock().map_err(|e| e.to_string())?;
         node.local_peer_id()
@@ -151,6 +170,7 @@ pub async fn update_server(
         .find(|s| s.id == server_id)
         .ok_or_else(|| format!("Server '{server_id}' not found"))?;
     if server.owner_peer_id != local_peer_id {
+        log::warn!("Unauthorized update_server attempt on server_id={server_id}");
         return Err("Only the server owner can update it".to_string());
     }
     state
@@ -166,6 +186,7 @@ pub async fn delete_server(
     server_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    log::info!("Deleting server server_id={server_id}");
     let local_peer_id = {
         let node = state.p2p.lock().map_err(|e| e.to_string())?;
         node.local_peer_id()
@@ -176,6 +197,7 @@ pub async fn delete_server(
         .find(|s| s.id == server_id)
         .ok_or_else(|| format!("Server '{server_id}' not found"))?;
     if server.owner_peer_id != local_peer_id {
+        log::warn!("Unauthorized delete_server attempt on server_id={server_id}");
         return Err("Only the server owner can delete it".to_string());
     }
     state

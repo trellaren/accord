@@ -16,7 +16,9 @@ pub struct PeerInfo {
 #[tauri::command]
 pub async fn get_local_peer_id(state: State<'_, AppState>) -> Result<String, String> {
     let node = state.p2p.lock().map_err(|e| e.to_string())?;
-    Ok(node.local_peer_id())
+    let id = node.local_peer_id();
+    log::debug!("Local peer id: {id}");
+    Ok(id)
 }
 
 /// Initiate an outbound connection to a peer multiaddr (e.g. "/ip4/1.2.3.4/tcp/4001").
@@ -25,8 +27,13 @@ pub async fn connect_to_peer(
     address: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    log::info!("Connecting to peer address={address}");
     let mut node = state.p2p.lock().map_err(|e| e.to_string())?;
-    node.connect(&address).map_err(|e| e.to_string())
+    let result = node.connect(&address).map_err(|e| e.to_string());
+    if let Err(e) = &result {
+        log::error!("Failed to connect to peer address={address}: {e}");
+    }
+    result
 }
 
 /// Disconnect from a peer by PeerId string.
@@ -35,6 +42,7 @@ pub async fn disconnect_peer(
     peer_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    log::info!("Disconnecting peer peer_id={peer_id}");
     let mut node = state.p2p.lock().map_err(|e| e.to_string())?;
     node.disconnect(&peer_id).map_err(|e| e.to_string())
 }
@@ -43,12 +51,15 @@ pub async fn disconnect_peer(
 #[tauri::command]
 pub async fn list_peers(state: State<'_, AppState>) -> Result<Vec<PeerInfo>, String> {
     let node = state.p2p.lock().map_err(|e| e.to_string())?;
-    Ok(node.connected_peers())
+    let peers = node.connected_peers();
+    log::debug!("Listing peers count={}", peers.len());
+    Ok(peers)
 }
 
 /// Start mDNS peer discovery on the local network.
 #[tauri::command]
 pub async fn start_discovery(state: State<'_, AppState>) -> Result<(), String> {
+    log::info!("Starting mDNS peer discovery");
     let mut node = state.p2p.lock().map_err(|e| e.to_string())?;
     node.start_discovery().map_err(|e| e.to_string())
 }
@@ -60,6 +71,7 @@ pub async fn announce_channel_presence(
     channel_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    log::debug!("Announcing presence channel_id={channel_id:?}");
     let node = state.p2p.lock().map_err(|e| e.to_string())?;
     node.announce_presence(channel_id).map_err(|e| e.to_string())
 }
@@ -70,6 +82,7 @@ pub async fn get_peers_in_channel(
     channel_id: String,
     state: State<'_, AppState>,
 ) -> Result<Vec<PeerInfo>, String> {
+    log::debug!("Getting peers in channel channel_id={channel_id}");
     let node = state.p2p.lock().map_err(|e| e.to_string())?;
     Ok(node.peers_in_channel(&channel_id))
 }
@@ -85,6 +98,7 @@ pub async fn invite_peer_to_server(
     server_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    log::info!("Inviting peer peer_address={peer_address} to server_id={server_id}");
     // Fetch the server to get its invite code and name.
     let server = state
         .db
@@ -119,7 +133,11 @@ pub async fn get_pending_server_invites(
     state: State<'_, AppState>,
 ) -> Result<Vec<ServerInviteMessage>, String> {
     let node = state.p2p.lock().map_err(|e| e.to_string())?;
-    Ok(node.take_received_server_invites())
+    let invites = node.take_received_server_invites();
+    if !invites.is_empty() {
+        log::info!("Retrieved {} pending server invite(s)", invites.len());
+    }
+    Ok(invites)
 }
 
 /// Return all multiaddresses the local libp2p node is listening on.
@@ -131,10 +149,11 @@ pub async fn get_pending_server_invites(
 pub async fn get_local_peer_address(state: State<'_, AppState>) -> Result<Vec<String>, String> {
     let node = state.p2p.lock().map_err(|e| e.to_string())?;
     let peer_id = node.local_peer_id();
-    let addrs = node
+    let addrs: Vec<String> = node
         .listen_addresses()
         .into_iter()
         .map(|a| format!("{a}/p2p/{peer_id}"))
         .collect();
+    log::debug!("Local listen addresses count={}", addrs.len());
     Ok(addrs)
 }
