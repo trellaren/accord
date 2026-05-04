@@ -175,8 +175,9 @@ export function UserProfileModal({ onClose }: Props) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recordingAction]);
+    // keybinds is intentionally included: each time recordingAction is set the
+    // effect re-mounts and captures the current keybinds snapshot.
+  }, [recordingAction, keybinds]);
 
   return (
     <div className={styles.overlay} onClick={onClose}>
