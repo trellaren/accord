@@ -29,6 +29,11 @@ interface RolePanelProps {
   onClose: () => void;
 }
 
+/** Validate that a color string is a safe CSS hex color. */
+function isSafeColor(color: string): boolean {
+  return /^#[0-9a-fA-F]{3,8}$/.test(color);
+}
+
 function RolePanel({ serverId, peerId, roles, onClose }: RolePanelProps) {
   const { fetchMemberRoles, assignRole, revokeRole } = useAppStore();
   const [memberRoles, setMemberRoles] = useState<ServerRole[]>([]);
@@ -39,6 +44,8 @@ function RolePanel({ serverId, peerId, roles, onClose }: RolePanelProps) {
       .then(setMemberRoles)
       .catch(() => setMemberRoles([]))
       .finally(() => setLoading(false));
+    // fetchMemberRoles/assignRole/revokeRole are Zustand store selectors — stable
+    // references that never change, so omitting them from deps is intentional.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverId, peerId]);
 
@@ -76,7 +83,7 @@ function RolePanel({ serverId, peerId, roles, onClose }: RolePanelProps) {
                 <button
                   key={role.id}
                   className={clsx(styles.roleChip, assigned && styles.roleChipActive)}
-                  style={assigned ? { background: role.color + "33", borderColor: role.color, color: role.color } : {}}
+                  style={assigned && isSafeColor(role.color) ? { background: role.color + "33", borderColor: role.color, color: role.color } : {}}
                   onClick={() => handleToggleRole(role.id)}
                 >
                   {assigned ? "✓ " : ""}{role.name}
@@ -179,6 +186,7 @@ export function VoiceChannel() {
   // Load roles when the active server changes (needed for role management).
   useEffect(() => {
     if (activeServerId) loadRoles(activeServerId).catch(() => {});
+    // loadRoles is a Zustand store action — a stable reference that never changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeServerId]);
 
