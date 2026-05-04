@@ -234,3 +234,44 @@ export function startScreenShare(
 export function stopScreenShare(): Promise<void> {
   return invoke("stop_screen_share");
 }
+
+// ── Auto-updater ──────────────────────────────────────────────────────────────
+
+export interface UpdateInfo {
+  version: string;
+  body: string | null;
+}
+
+/**
+ * Check for an available application update.
+ *
+ * Returns the new version info if an update is available, or `null` if the
+ * app is already up-to-date.  When running outside of a Tauri context (e.g.
+ * in a browser dev server) this always returns `null`.
+ */
+export async function checkForUpdate(): Promise<UpdateInfo | null> {
+  try {
+    const { check } = await import("@tauri-apps/plugin-updater");
+    const update = await check();
+    if (!update?.available) return null;
+    return { version: update.version, body: update.body ?? null };
+  } catch {
+    // Running in a browser dev server or updater not configured – skip silently.
+    return null;
+  }
+}
+
+/**
+ * Download and install the pending update, then restart the app.
+ *
+ * Should only be called after `checkForUpdate()` has confirmed an update is
+ * available.
+ */
+export async function installUpdate(): Promise<void> {
+  const { check } = await import("@tauri-apps/plugin-updater");
+  const { relaunch } = await import("@tauri-apps/plugin-process");
+  const update = await check();
+  if (!update?.available) return;
+  await update.downloadAndInstall();
+  await relaunch();
+}

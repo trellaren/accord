@@ -36,5 +36,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": [
+        "https://releases.trellaren.io/accord/{{target}}/{{arch}}/{{current_version}}"
+      ]
+    }
   }
 }
