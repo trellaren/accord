@@ -26,12 +26,12 @@ pub async fn create_server(
     };
     let result = state
         .db
-        .create_server(name.clone(), owner_peer_id)
+        .create_server(name, owner_peer_id)
         .await
         .map_err(|e| e.to_string());
     match &result {
         Ok(s) => log::debug!("Server created id={}", s.id),
-        Err(e) => log::error!("Failed to create server name={name:?}: {e}"),
+        Err(e) => log::error!("Failed to create server: {e}"),
     }
     result
 }

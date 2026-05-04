@@ -116,7 +116,7 @@ export function DebugWindow({ onClose }: Props) {
             </div>
           ) : (
             visible.map((e, i) => (
-              <div key={i} className={styles.logEntry}>
+              <div key={`${e.timestamp}-${i}`} className={styles.logEntry}>
                 <span className={styles.ts}>{fmtTime(e.timestamp)}</span>
                 <span className={`${styles.level} ${levelClass(e.level)}`}>{e.level}</span>
                 <span className={styles.msg}>{e.message}</span>
