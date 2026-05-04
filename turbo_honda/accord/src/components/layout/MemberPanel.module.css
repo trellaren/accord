@@ -1,0 +1,118 @@
+.panel {
+  width: 240px;
+  min-width: 240px;
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--border-subtle);
+}
+
+.header {
+  padding: 16px 12px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+}
+
+.list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.group {
+  margin-bottom: 8px;
+}
+
+.groupLabel {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  transition: background 0.1s;
+  cursor: default;
+}
+
+.member:hover {
+  background: var(--bg-hover);
+}
+
+.memberOffline {
+  opacity: 0.55;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.avatarOffline {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channelTag {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.statusOnline {
+  color: var(--success);
+  flex-shrink: 0;
+}
+
+.statusOffline {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.empty {
+  padding: 16px 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}

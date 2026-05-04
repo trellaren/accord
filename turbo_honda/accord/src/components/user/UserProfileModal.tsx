@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../../store/useAppStore";
 import styles from "./UserProfileModal.module.css";
 
@@ -53,6 +53,7 @@ export function UserProfileModal({ onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Populate form from loaded profile and load device lists.
   useEffect(() => {
@@ -93,6 +94,18 @@ export function UserProfileModal({ onClose }: Props) {
     }
   }
 
+  function handleAvatarFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setAvatarUrl(dataUrl);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -107,7 +120,7 @@ export function UserProfileModal({ onClose }: Props) {
         )}
 
         <form onSubmit={handleSubmit} className={styles.form}>
-          {/* Avatar preview + URL input */}
+          {/* Avatar preview + file picker */}
           <div className={styles.avatarSection}>
             {avatarUrl ? (
               <img
@@ -122,15 +135,31 @@ export function UserProfileModal({ onClose }: Props) {
               </div>
             )}
             <div className={styles.avatarInput}>
-              <label className={styles.label}>Avatar URL</label>
               <input
-                className={styles.input}
-                placeholder="https://example.com/avatar.png"
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                disabled={loading}
-                maxLength={512}
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={handleAvatarFileChange}
               />
+              <button
+                type="button"
+                className={styles.btnChooseFile}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={loading}
+              >
+                Choose Image
+              </button>
+              {avatarUrl && (
+                <button
+                  type="button"
+                  className={styles.btnRemoveAvatar}
+                  onClick={() => setAvatarUrl("")}
+                  disabled={loading}
+                >
+                  Remove
+                </button>
+              )}
             </div>
           </div>
 

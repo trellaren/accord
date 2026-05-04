@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
+import { Hash, Volume2, Link, Users, Plus, RefreshCw, Signal, MapPin } from "lucide-react";
 import { useAppStore } from "../../store/useAppStore";
 import { ChannelInfo } from "../../lib/tauri";
 import { InviteCodeModal } from "../servers/InviteCodeModal";
@@ -93,14 +94,14 @@ export function Sidebar() {
                 onClick={() => setShowInvite(true)}
                 title="Get invite code"
               >
-                🔗
+                <Link size={14} />
               </button>
               <button
                 className={styles.headerBtn}
                 onClick={() => setShowMembers(true)}
                 title="Manage members"
               >
-                👥
+                <Users size={14} />
               </button>
             </div>
           )}
@@ -140,7 +141,7 @@ export function Sidebar() {
               onClick={() => setShowAddChannel((v) => !v)}
               aria-label="Add channel"
             >
-              {showAddChannel ? "−" : "+"}
+              {showAddChannel ? <span style={{fontSize:14}}>−</span> : <Plus size={14} />}
             </button>
           </div>
           {showAddChannel && (
@@ -205,7 +206,7 @@ export function Sidebar() {
               onClick={discoverPeers}
               title="Discover peers on local network"
             >
-              ↺
+              <RefreshCw size={12} />
             </button>
           </div>
           {peers.map((p) => (
@@ -214,10 +215,11 @@ export function Sidebar() {
               <span className={styles.peerName} title={p.peer_id}>
                 {p.peer_id.slice(0, 10)}…
               </span>
+              {p.connected && (
+                <span className={styles.peerPingIcon} aria-label="Connected"><Signal size={12} /></span>
+              )}
               {p.channel_id && (
-                <span className={styles.peerChannel} title={`In channel ${p.channel_id}`}>
-                  📍
-                </span>
+                <span className={styles.peerChannel} aria-label={`In channel ${p.channel_id}`}><MapPin size={11} /></span>
               )}
             </div>
           ))}
@@ -306,7 +308,6 @@ function ChannelSection({
   localAvatarUrl,
   onSelect,
 }: ChannelSectionProps) {
-  const icon: Record<string, string> = { text: "#", voice: "🔊" };
   return (
     <div className={styles.section}>
       <p className={styles.sectionTitle}>{title}</p>
@@ -327,7 +328,9 @@ function ChannelSection({
               className={clsx(styles.channelBtn, c.id === activeId && styles.channelBtnActive)}
               onClick={() => onSelect(c)}
             >
-              <span className={styles.channelIcon}>{icon[c.kind] ?? "#"}</span>
+              <span className={styles.channelIcon}>
+                {c.kind === "voice" ? <Volume2 size={14} /> : <Hash size={14} />}
+              </span>
               <span>{c.name}</span>
             </button>
 

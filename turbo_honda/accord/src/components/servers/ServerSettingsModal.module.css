@@ -13,10 +13,8 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
   padding: 28px 32px;
-  width: 480px;
+  width: 440px;
   max-width: calc(100vw - 32px);
-  max-height: 90vh;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -28,41 +26,23 @@
   color: var(--text-primary);
 }
 
-.peerIdBox {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 8px 12px;
+.form {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 12px;
 }
 
-.peerIdLabel {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-}
-
-.peerId {
-  font-size: 11px;
-  color: var(--text-secondary);
-  word-break: break-all;
-}
-
-/* Avatar */
 .avatarSection {
   display: flex;
   align-items: center;
   gap: 16px;
+  padding: 8px 0;
 }
 
 .avatarPreview {
   width: 64px;
   height: 64px;
-  border-radius: 50%;
+  border-radius: var(--radius-md);
   object-fit: cover;
   flex-shrink: 0;
   border: 2px solid var(--border-strong);
@@ -71,10 +51,10 @@
 .avatarPlaceholder {
   width: 64px;
   height: 64px;
-  border-radius: 50%;
+  border-radius: var(--radius-md);
   background: var(--accent);
   color: #fff;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -82,74 +62,16 @@
   flex-shrink: 0;
 }
 
-.avatarInput {
-  flex: 1;
+.avatarActions {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.btnChooseFile {
-  padding: 8px 14px;
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-weight: 500;
-  transition: background 0.15s;
-  text-align: center;
-}
-
-.btnChooseFile:hover:not(:disabled) {
-  background: var(--bg-active);
-}
-
-.btnChooseFile:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btnRemoveAvatar {
-  padding: 6px 12px;
-  background: transparent;
-  border: 1px solid var(--danger);
-  color: var(--danger);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  font-weight: 500;
-  transition: background 0.15s;
-}
-
-.btnRemoveAvatar:hover:not(:disabled) {
-  background: rgba(242, 63, 66, 0.1);
-}
-
-.btnRemoveAvatar:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.sectionHeading {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  border-top: 1px solid var(--border-subtle);
-  padding-top: 12px;
-  margin-top: 4px;
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .label {
@@ -160,8 +82,7 @@
   color: var(--text-muted);
 }
 
-.input,
-.select {
+.input {
   padding: 10px 12px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-strong);
@@ -171,14 +92,9 @@
   width: 100%;
 }
 
-.input:focus,
-.select:focus {
+.input:focus {
   border-color: var(--accent);
   outline: none;
-}
-
-.select option {
-  background: var(--bg-secondary);
 }
 
 .error {
@@ -233,5 +149,25 @@
 
 .btnSecondary:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnDanger {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.btnDanger:hover:not(:disabled) {
+  background: rgba(242, 63, 66, 0.1);
+}
+
+.btnDanger:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }

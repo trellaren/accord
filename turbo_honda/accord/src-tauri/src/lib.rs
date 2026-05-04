@@ -172,6 +172,7 @@ pub fn run() {
             commands::servers::remove_server_member,
             commands::servers::leave_server,
             commands::servers::delete_server,
+            commands::servers::update_server,
             // User profile
             commands::user::get_user_profile,
             commands::user::set_user_profile,

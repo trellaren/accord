@@ -66,7 +66,8 @@ impl Db {
                 id             TEXT PRIMARY KEY,
                 name           TEXT NOT NULL,
                 invite_code    TEXT NOT NULL UNIQUE,
-                owner_peer_id  TEXT NOT NULL
+                owner_peer_id  TEXT NOT NULL,
+                avatar_url     TEXT NOT NULL DEFAULT ''
             )",
         )
         .execute(&self.pool)
@@ -81,6 +82,19 @@ impl Db {
         )
         .execute(&self.pool)
         .await?;
+
+        // Migrate older server tables that lack avatar_url.
+        let server_columns: Vec<String> = sqlx::query("PRAGMA table_info(servers)")
+            .fetch_all(&self.pool)
+            .await?
+            .into_iter()
+            .filter_map(|row| row.try_get::<String, _>("name").ok())
+            .collect();
+        if !server_columns.contains(&"avatar_url".to_string()) {
+            sqlx::query("ALTER TABLE servers ADD COLUMN avatar_url TEXT NOT NULL DEFAULT ''")
+                .execute(&self.pool)
+                .await?;
+        }
 
         // ── User profile ──────────────────────────────────────────────────────
 
@@ -392,13 +406,13 @@ impl Db {
             .bind(&owner_peer_id)
             .execute(&self.pool)
             .await?;
-        Ok(ServerInfo { id, name, invite_code, owner_peer_id })
+        Ok(ServerInfo { id, name, invite_code, owner_peer_id, avatar_url: String::new() })
     }
 
     /// Return all servers the local peer is a member of (or owns).
     pub async fn list_servers(&self) -> Result<Vec<ServerInfo>> {
         let rows = sqlx::query(
-            "SELECT id, name, invite_code, owner_peer_id FROM servers ORDER BY name",
+            "SELECT id, name, invite_code, owner_peer_id, avatar_url FROM servers ORDER BY name",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -409,6 +423,7 @@ impl Db {
                 name: row.get("name"),
                 invite_code: row.get("invite_code"),
                 owner_peer_id: row.get("owner_peer_id"),
+                avatar_url: row.get("avatar_url"),
             })
             .collect())
     }
@@ -420,7 +435,7 @@ impl Db {
         peer_id: &str,
     ) -> Result<ServerInfo> {
         let row = sqlx::query(
-            "SELECT id, name, invite_code, owner_peer_id FROM servers WHERE invite_code = ?",
+            "SELECT id, name, invite_code, owner_peer_id, avatar_url FROM servers WHERE invite_code = ?",
         )
         .bind(invite_code)
         .fetch_optional(&self.pool)
@@ -432,6 +447,7 @@ impl Db {
             name: row.get("name"),
             invite_code: row.get("invite_code"),
             owner_peer_id: row.get("owner_peer_id"),
+            avatar_url: row.get("avatar_url"),
         };
 
         sqlx::query("INSERT OR IGNORE INTO server_members (server_id, peer_id) VALUES (?, ?)")
@@ -474,6 +490,40 @@ impl Db {
             return Err(anyhow!("Not a member of server '{server_id}'"));
         }
         Ok(())
+    }
+
+    /// Update a server's name and avatar.  Returns the updated ServerInfo.
+    pub async fn update_server(
+        &self,
+        server_id: &str,
+        name: &str,
+        avatar_url: &str,
+    ) -> Result<ServerInfo> {
+        let rows = sqlx::query(
+            "UPDATE servers SET name = ?, avatar_url = ? WHERE id = ?",
+        )
+        .bind(name)
+        .bind(avatar_url)
+        .bind(server_id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+        if rows == 0 {
+            return Err(anyhow!("Server '{server_id}' not found"));
+        }
+        let row = sqlx::query(
+            "SELECT id, name, invite_code, owner_peer_id, avatar_url FROM servers WHERE id = ?",
+        )
+        .bind(server_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(ServerInfo {
+            id: row.get("id"),
+            name: row.get("name"),
+            invite_code: row.get("invite_code"),
+            owner_peer_id: row.get("owner_peer_id"),
+            avatar_url: row.get("avatar_url"),
+        })
     }
 
     /// Delete a server and all associated channels/messages (via ON DELETE CASCADE).

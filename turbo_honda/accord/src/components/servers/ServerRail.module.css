@@ -58,3 +58,10 @@
   margin: 2px 0;
   flex-shrink: 0;
 }
+
+.serverAvatar {
+  width: 48px;
+  height: 48px;
+  border-radius: inherit;
+  object-fit: cover;
+}

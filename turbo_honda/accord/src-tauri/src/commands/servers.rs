@@ -9,6 +9,8 @@ pub struct ServerInfo {
     /// Short alphanumeric invite code that other peers can use to join.
     pub invite_code: String,
     pub owner_peer_id: String,
+    /// Optional avatar stored as a data-URI or URL.
+    pub avatar_url: String,
 }
 
 /// Create a new server owned by the local peer.
@@ -127,6 +129,33 @@ pub async fn leave_server(
     state
         .db
         .leave_server(&server_id, &local_peer_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Update a server's name and/or avatar.  Only the server owner may do this.
+#[tauri::command]
+pub async fn update_server(
+    server_id: String,
+    name: String,
+    avatar_url: String,
+    state: State<'_, AppState>,
+) -> Result<ServerInfo, String> {
+    let local_peer_id = {
+        let node = state.p2p.lock().map_err(|e| e.to_string())?;
+        node.local_peer_id()
+    };
+    let servers = state.db.list_servers().await.map_err(|e| e.to_string())?;
+    let server = servers
+        .into_iter()
+        .find(|s| s.id == server_id)
+        .ok_or_else(|| format!("Server '{server_id}' not found"))?;
+    if server.owner_peer_id != local_peer_id {
+        return Err("Only the server owner can update it".to_string());
+    }
+    state
+        .db
+        .update_server(&server_id, &name, &avatar_url)
         .await
         .map_err(|e| e.to_string())
 }

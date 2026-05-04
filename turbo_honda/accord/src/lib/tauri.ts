@@ -31,6 +31,8 @@ export interface ServerInfo {
   name: string;
   invite_code: string;
   owner_peer_id: string;
+  /** Optional avatar stored as a data-URI or URL. */
+  avatar_url: string;
 }
 
 export interface UserProfile {
@@ -143,6 +145,14 @@ export function leaveServer(serverId: string): Promise<void> {
 
 export function deleteServer(serverId: string): Promise<void> {
   return invoke("delete_server", { serverId });
+}
+
+export function updateServer(
+  serverId: string,
+  name: string,
+  avatarUrl: string,
+): Promise<ServerInfo> {
+  return invoke("update_server", { serverId, name, avatarUrl });
 }
 
 // ── User profile commands ─────────────────────────────────────────────────────

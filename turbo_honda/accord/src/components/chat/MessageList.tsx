@@ -7,6 +7,20 @@ interface Props {
   messages: MessagePayload[];
 }
 
+/** Detect if a message content is a JSON-encoded media attachment. */
+function parseMediaContent(content: string): { mime: string; name: string; data: string } | null {
+  if (!content.startsWith('{"_type":"media"')) return null;
+  try {
+    const parsed = JSON.parse(content);
+    if (parsed._type === "media" && parsed.data) {
+      return { mime: parsed.mime ?? "", name: parsed.name ?? "attachment", data: parsed.data };
+    }
+  } catch {
+    // Not valid JSON – treat as regular text.
+  }
+  return null;
+}
+
 export function MessageList({ messages }: Props) {
   const { localPeerId } = useAppStore();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -46,6 +60,7 @@ interface ItemProps {
 function MessageItem({ message, isOwn }: ItemProps) {
   const date = new Date(message.timestamp);
   const timeStr = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const media = parseMediaContent(message.content);
 
   return (
     <div className={`${styles.message} ${isOwn ? styles.messageOwn : ""}`}>
@@ -59,8 +74,45 @@ function MessageItem({ message, isOwn }: ItemProps) {
           </span>
           <span className={styles.time}>{timeStr}</span>
         </div>
-        <p className={styles.content}>{message.content}</p>
+        {media ? (
+          <MediaAttachment mime={media.mime} name={media.name} data={media.data} />
+        ) : (
+          <p className={styles.content}>{message.content}</p>
+        )}
       </div>
     </div>
   );
 }
+
+function MediaAttachment({ mime, name, data }: { mime: string; name: string; data: string }) {
+  if (mime.startsWith("image/")) {
+    return (
+      <div className={styles.mediaWrapper}>
+        <img
+          src={data}
+          alt={name}
+          className={styles.mediaImage}
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+  if (mime.startsWith("video/")) {
+    return (
+      <div className={styles.mediaWrapper}>
+        <video
+          src={data}
+          controls
+          className={styles.mediaVideo}
+        />
+      </div>
+    );
+  }
+  // Fallback for other types
+  return (
+    <a href={data} download={name} className={styles.mediaDownload}>
+      📎 {name}
+    </a>
+  );
+}
+
