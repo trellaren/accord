@@ -159,7 +159,7 @@ export function RolesManagementModal({ serverId, onClose, embedded = false }: Pr
                 />
               </div>
               <div className={styles.colorField}>
-                <label className={modalStyles.label}>Colour</label>
+                <label className={modalStyles.label}>Color</label>
                 <input
                   type="color"
                   className={styles.colorInput}
