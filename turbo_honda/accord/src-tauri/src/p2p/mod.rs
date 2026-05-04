@@ -46,8 +46,10 @@ pub struct ServerInviteMessage {
     pub invite_code: String,
     /// Human-readable server name (for display purposes).
     pub server_name: String,
-    /// PeerId of the sender.
+    /// PeerId of the sender (the server owner).
     pub from_peer_id: String,
+    /// Canonical server UUID so the recipient can create the correct local record.
+    pub server_id: String,
 }
 
 /// Invite pending transmission once a specific peer address is connected.

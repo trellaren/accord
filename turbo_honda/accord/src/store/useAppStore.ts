@@ -34,6 +34,8 @@ import {
   createServer,
   listServers,
   joinServer,
+  acceptServerInvite,
+  joinServerByAddress,
   getServerInvite,
   listServerMembers,
   removeServerMember,
@@ -227,7 +229,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   joinExistingServer: async (inviteCode) => {
-    const server = await joinServer(inviteCode);
+    // Detect a full join string (contains `|` separators with server metadata).
+    const isFullJoinString = inviteCode.includes("|");
+    const server = isFullJoinString
+      ? await joinServerByAddress(inviteCode)
+      : await joinServer(inviteCode);
     set((s) => {
       const exists = s.servers.some((sv) => sv.id === server.id);
       return {
@@ -355,7 +361,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   acceptInvite: async (invite) => {
     try {
-      const server = await joinServer(invite.invite_code);
+      // Use `acceptServerInvite` when we have the canonical server id (new
+      // invite format).  Fall back to the legacy local-DB lookup for invites
+      // that were received before this field was added.
+      const server = invite.server_id
+        ? await acceptServerInvite(
+            invite.server_id,
+            invite.server_name,
+            invite.invite_code,
+            invite.from_peer_id,
+          )
+        : await joinServer(invite.invite_code);
       set((s) => {
         const exists = s.servers.some((sv) => sv.id === server.id);
         return {

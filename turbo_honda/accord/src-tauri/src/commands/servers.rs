@@ -180,7 +180,117 @@ pub async fn update_server(
         .map_err(|e| e.to_string())
 }
 
-/// Delete a server entirely.  Only the server owner may do this.
+/// Accept a server invite received from a remote peer via GossipSub.
+///
+/// Creates the server record locally (using the canonical server id supplied by
+/// the owner) if it does not already exist, then adds the local peer as a member.
+#[tauri::command]
+pub async fn accept_server_invite(
+    server_id: String,
+    server_name: String,
+    invite_code: String,
+    owner_peer_id: String,
+    state: State<'_, AppState>,
+) -> Result<ServerInfo, String> {
+    log::info!(
+        "Accepting server invite server_id={server_id} name={server_name:?}"
+    );
+    let local_peer_id = {
+        let node = state.p2p.lock().map_err(|e| e.to_string())?;
+        node.local_peer_id()
+    };
+    state
+        .db
+        .join_server_from_invite(
+            &server_id,
+            &server_name,
+            &invite_code,
+            &owner_peer_id,
+            &local_peer_id,
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Join a server from a *full join string* that encodes all metadata needed to
+/// create the local server record **and** connect to the server owner.
+///
+/// # Full join string format
+/// ```text
+/// <invite_code>|<server_id>|<peer_multiaddr>|<server_name>
+/// ```
+/// * `invite_code`    – 8-character alphanumeric code (e.g. `AB12CD34`)
+/// * `server_id`      – UUID that identifies the server across all peers
+/// * `peer_multiaddr` – libp2p multiaddr of the owner, including `/p2p/<peer-id>` suffix
+/// * `server_name`    – human-readable display name (may contain `|`)
+///
+/// The owner's peer id is derived from the `/p2p/<peer-id>` segment of the multiaddr.
+#[tauri::command]
+pub async fn join_server_by_address(
+    join_string: String,
+    state: State<'_, AppState>,
+) -> Result<ServerInfo, String> {
+    log::info!("Joining server by address join_string_len={}", join_string.len());
+
+    // Split into at most 4 parts; the 4th captures the server name (which may
+    // itself contain `|`).
+    let parts: Vec<&str> = join_string.splitn(4, '|').collect();
+    if parts.len() != 4 {
+        return Err(
+            "Invalid join string. Expected format: invite_code|server_id|peer_multiaddr|server_name"
+                .to_string(),
+        );
+    }
+    let invite_code = parts[0].trim().to_uppercase();
+    let server_id = parts[1].trim().to_string();
+    let peer_addr = parts[2].trim().to_string();
+    let server_name = parts[3].to_string();
+
+    // Extract the owner's peer id from the multiaddr `/p2p/<peer-id>` suffix.
+    let owner_peer_id = peer_addr
+        .rsplit("/p2p/")
+        .next()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            "Peer address must include a /p2p/<peer-id> suffix".to_string()
+        })?
+        .to_string();
+
+    let local_peer_id = {
+        let node = state.p2p.lock().map_err(|e| e.to_string())?;
+        node.local_peer_id()
+    };
+
+    // Create the server record locally (idempotent if it already exists).
+    let server = state
+        .db
+        .join_server_from_invite(
+            &server_id,
+            &server_name,
+            &invite_code,
+            &owner_peer_id,
+            &local_peer_id,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Dial the peer address so the P2P connection is established.
+    {
+        let mut node = state.p2p.lock().map_err(|e| e.to_string())?;
+        if let Err(e) = node.connect(&peer_addr) {
+            log::warn!("Could not dial peer {peer_addr}: {e}");
+        }
+    }
+
+    log::info!(
+        "Joined server id={} name={:?} via address {}",
+        server.id,
+        server.name,
+        peer_addr,
+    );
+    Ok(server)
+}
+
 #[tauri::command]
 pub async fn delete_server(
     server_id: String,

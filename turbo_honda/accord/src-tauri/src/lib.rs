@@ -175,6 +175,8 @@ pub fn run() {
             commands::servers::create_server,
             commands::servers::list_servers,
             commands::servers::join_server,
+            commands::servers::accept_server_invite,
+            commands::servers::join_server_by_address,
             commands::servers::get_server_invite,
             commands::servers::list_server_members,
             commands::servers::remove_server_member,
