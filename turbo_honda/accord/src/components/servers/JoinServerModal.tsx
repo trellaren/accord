@@ -24,6 +24,11 @@ export function JoinServerModal({ onClose }: Props) {
     // Full join strings are case-sensitive; plain invite codes are uppercased.
     const value = full ? code.trim() : code.trim().toUpperCase();
     if (!value) return;
+    // Plain invite codes are always exactly 8 alphanumeric characters.
+    if (!full && value.length > 8) {
+      setError("Invite codes are 8 characters. Paste the full join string to include a server address.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -57,6 +62,8 @@ export function JoinServerModal({ onClose }: Props) {
             onChange={(e) => setCode(e.target.value)}
             autoFocus
             disabled={loading}
+            // No maxLength: full join strings are pasted in one go. Plain invite
+            // codes are validated to ≤8 chars in handleSubmit.
             style={full ? undefined : { textTransform: "uppercase", letterSpacing: "0.1em" }}
           />
           {error && <p className={styles.error}>{error}</p>}

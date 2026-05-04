@@ -244,7 +244,9 @@ pub async fn join_server_by_address(
     let invite_code = parts[0].trim().to_uppercase();
     let server_id = parts[1].trim().to_string();
     let peer_addr = parts[2].trim().to_string();
-    let server_name = parts[3].to_string();
+    // The server name is the last segment and may itself contain `|`; trim
+    // whitespace but otherwise preserve it as-is.
+    let server_name = parts[3].trim().to_string();
 
     // Extract the owner's peer id from the multiaddr `/p2p/<peer-id>` suffix.
     let owner_peer_id = peer_addr
