@@ -1,14 +1,17 @@
 import { create } from "zustand";
 import {
   ChannelInfo,
+  ChannelPermission,
   MessagePayload,
   PeerInfo,
   ServerInfo,
   ServerInvitePayload,
+  ServerRole,
   UserProfile,
   AudioDevice,
   VideoDevice,
   getLocalPeerId,
+  getLocalPeerAddress,
   listChannels,
   listPeers,
   sendMessage,
@@ -41,6 +44,15 @@ import {
   updateServer,
   invitePeerToServer,
   getPendingServerInvites,
+  createRole,
+  listRoles,
+  updateRole,
+  deleteRole,
+  assignMemberRole,
+  removeMemberRole,
+  getMemberRoles,
+  setChannelPermission,
+  getChannelPermissions,
 } from "../lib/tauri";
 
 interface AppState {
@@ -80,6 +92,11 @@ interface AppState {
 
   // User profile
   userProfile: UserProfile | null;
+
+  // Roles: server_id → list of roles
+  serverRoles: Record<string, ServerRole[]>;
+  // Channel permissions: channel_id → list of permission overrides
+  channelPermissions: Record<string, ChannelPermission[]>;
 
   // Actions
   initNode: () => Promise<void>;
@@ -141,6 +158,22 @@ interface AppState {
     outputDeviceId: string,
     videoDeviceId: string,
   ) => Promise<void>;
+
+  // Role actions
+  loadRoles: (serverId: string) => Promise<void>;
+  addRole: (serverId: string, name: string, color: string, permissions: number) => Promise<ServerRole>;
+  editRole: (roleId: string, name: string, color: string, permissions: number) => Promise<ServerRole>;
+  removeRole: (serverId: string, roleId: string) => Promise<void>;
+  assignRole: (serverId: string, peerId: string, roleId: string) => Promise<void>;
+  revokeRole: (serverId: string, peerId: string, roleId: string) => Promise<void>;
+  fetchMemberRoles: (serverId: string, peerId: string) => Promise<ServerRole[]>;
+
+  // Channel permission actions
+  loadChannelPermissions: (channelId: string) => Promise<void>;
+  saveChannelPermission: (channelId: string, roleId: string, allow: number, deny: number) => Promise<void>;
+
+  // Connection string
+  getConnectionString: () => Promise<string[]>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -161,6 +194,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   audioDevices: [],
   videoDevices: [],
   userProfile: null,
+  serverRoles: {},
+  channelPermissions: {},
 
   initNode: async () => {
     const peerId = await getLocalPeerId();
@@ -387,5 +422,87 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadVideoDevices: async () => {
     const videoDevices = await listVideoDevices();
     set({ videoDevices });
+  },
+
+  // ── Roles ──────────────────────────────────────────────────────────────────
+
+  loadRoles: async (serverId) => {
+    const roles = await listRoles(serverId);
+    set((s) => ({ serverRoles: { ...s.serverRoles, [serverId]: roles } }));
+  },
+
+  addRole: async (serverId, name, color, permissions) => {
+    const role = await createRole(serverId, name, color, permissions);
+    set((s) => ({
+      serverRoles: {
+        ...s.serverRoles,
+        [serverId]: [...(s.serverRoles[serverId] ?? []), role],
+      },
+    }));
+    return role;
+  },
+
+  editRole: async (roleId, name, color, permissions) => {
+    const updated = await updateRole(roleId, name, color, permissions);
+    set((s) => {
+      const sid = updated.server_id;
+      return {
+        serverRoles: {
+          ...s.serverRoles,
+          [sid]: (s.serverRoles[sid] ?? []).map((r) =>
+            r.id === roleId ? updated : r,
+          ),
+        },
+      };
+    });
+    return updated;
+  },
+
+  removeRole: async (serverId, roleId) => {
+    await deleteRole(roleId);
+    set((s) => ({
+      serverRoles: {
+        ...s.serverRoles,
+        [serverId]: (s.serverRoles[serverId] ?? []).filter((r) => r.id !== roleId),
+      },
+    }));
+  },
+
+  assignRole: async (serverId, peerId, roleId) => {
+    await assignMemberRole(serverId, peerId, roleId);
+  },
+
+  revokeRole: async (serverId, peerId, roleId) => {
+    await removeMemberRole(serverId, peerId, roleId);
+  },
+
+  fetchMemberRoles: async (serverId, peerId) => {
+    return getMemberRoles(serverId, peerId);
+  },
+
+  // ── Channel permissions ────────────────────────────────────────────────────
+
+  loadChannelPermissions: async (channelId) => {
+    const perms = await getChannelPermissions(channelId);
+    set((s) => ({
+      channelPermissions: { ...s.channelPermissions, [channelId]: perms },
+    }));
+  },
+
+  saveChannelPermission: async (channelId, roleId, allow, deny) => {
+    const perm = await setChannelPermission(channelId, roleId, allow, deny);
+    set((s) => {
+      const existing = s.channelPermissions[channelId] ?? [];
+      const updated = existing.some((p) => p.role_id === roleId)
+        ? existing.map((p) => (p.role_id === roleId ? perm : p))
+        : [...existing, perm];
+      return { channelPermissions: { ...s.channelPermissions, [channelId]: updated } };
+    });
+  },
+
+  // ── Connection string ──────────────────────────────────────────────────────
+
+  getConnectionString: async () => {
+    return getLocalPeerAddress();
   },
 }));

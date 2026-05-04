@@ -35,6 +35,39 @@ export interface ServerInfo {
   avatar_url: string;
 }
 
+/** A role that can be assigned to server members. */
+export interface ServerRole {
+  id: string;
+  server_id: string;
+  name: string;
+  /** CSS hex colour string, e.g. `"#99aab5"`. */
+  color: string;
+  /** Bitmask of allowed permissions. */
+  permissions: number;
+}
+
+/** Permission flag constants for use with {@link ServerRole.permissions}. */
+export const Permission = {
+  VIEW_CHANNEL: 1,
+  SEND_MESSAGES: 2,
+  JOIN_VOICE: 4,
+  INVITE_USERS: 8,
+  MANAGE_CHANNELS: 16,
+  MANAGE_ROLES: 32,
+  DELETE_MESSAGES: 64,
+} as const;
+
+/** Per-channel permission override for a role. */
+export interface ChannelPermission {
+  id: string;
+  channel_id: string;
+  role_id: string;
+  /** Bitmask of explicitly allowed permissions. */
+  allow: number;
+  /** Bitmask of explicitly denied permissions. */
+  deny: number;
+}
+
 export interface UserProfile {
   peer_id: string;
   display_name: string;
@@ -61,6 +94,15 @@ export interface ServerInvitePayload {
 
 export function getLocalPeerId(): Promise<string> {
   return invoke("get_local_peer_id");
+}
+
+/**
+ * Return all multiaddresses the local libp2p node is listening on.
+ * These are shareable connection strings that other users can paste into the
+ * "Invite by peer address" field so you can be directly invited to a server.
+ */
+export function getLocalPeerAddress(): Promise<string[]> {
+  return invoke("get_local_peer_address");
 }
 
 export function listPeers(): Promise<PeerInfo[]> {
@@ -179,6 +221,69 @@ export function updateServer(
   avatarUrl: string,
 ): Promise<ServerInfo> {
   return invoke("update_server", { serverId, name, avatarUrl });
+}
+
+// ── Role commands ─────────────────────────────────────────────────────────────
+
+export function createRole(
+  serverId: string,
+  name: string,
+  color: string,
+  permissions: number,
+): Promise<ServerRole> {
+  return invoke("create_role", { serverId, name, color, permissions });
+}
+
+export function listRoles(serverId: string): Promise<ServerRole[]> {
+  return invoke("list_roles", { serverId });
+}
+
+export function updateRole(
+  roleId: string,
+  name: string,
+  color: string,
+  permissions: number,
+): Promise<ServerRole> {
+  return invoke("update_role", { roleId, name, color, permissions });
+}
+
+export function deleteRole(roleId: string): Promise<void> {
+  return invoke("delete_role", { roleId });
+}
+
+export function assignMemberRole(
+  serverId: string,
+  peerId: string,
+  roleId: string,
+): Promise<void> {
+  return invoke("assign_member_role", { serverId, peerId, roleId });
+}
+
+export function removeMemberRole(
+  serverId: string,
+  peerId: string,
+  roleId: string,
+): Promise<void> {
+  return invoke("remove_member_role", { serverId, peerId, roleId });
+}
+
+export function getMemberRoles(serverId: string, peerId: string): Promise<ServerRole[]> {
+  return invoke("get_member_roles", { serverId, peerId });
+}
+
+// ── Channel permission commands ───────────────────────────────────────────────
+
+export function setChannelPermission(
+  channelId: string,
+  roleId: string,
+  allow: number,
+  deny: number,
+): Promise<ChannelPermission> {
+  return invoke("set_channel_permission", { channelId, roleId, allow, deny });
+}
+
+export function getChannelPermissions(channelId: string): Promise<ChannelPermission[]> {
+  return invoke("get_channel_permissions", { channelId });
 }
 
 // ── User profile commands ─────────────────────────────────────────────────────

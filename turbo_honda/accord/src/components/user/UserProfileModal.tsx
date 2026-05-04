@@ -42,6 +42,7 @@ export function UserProfileModal({ onClose }: Props) {
     videoDevices,
     loadAudioDevices,
     loadVideoDevices,
+    getConnectionString,
   } = useAppStore();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -53,6 +54,8 @@ export function UserProfileModal({ onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [connectionStrings, setConnectionStrings] = useState<string[]>([]);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Populate form from loaded profile and load device lists.
@@ -73,6 +76,7 @@ export function UserProfileModal({ onClose }: Props) {
   useEffect(() => {
     loadAudioDevices().catch(() => {});
     loadVideoDevices().catch(() => {});
+    getConnectionString().then(setConnectionStrings).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -106,6 +110,16 @@ export function UserProfileModal({ onClose }: Props) {
     e.target.value = "";
   }
 
+  async function handleCopy(addr: string, idx: number) {
+    try {
+      await navigator.clipboard.writeText(addr);
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 2000);
+    } catch {
+      // fallback: select the text
+    }
+  }
+
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -116,6 +130,30 @@ export function UserProfileModal({ onClose }: Props) {
           <div className={styles.peerIdBox}>
             <span className={styles.peerIdLabel}>Peer ID</span>
             <code className={styles.peerId}>{userProfile.peer_id}</code>
+          </div>
+        )}
+
+        {/* Connection strings for sharing */}
+        {connectionStrings.length > 0 && (
+          <div className={styles.connStringSection}>
+            <p className={styles.connStringLabel}>
+              Your Connection String
+              <span className={styles.connStringHint}>
+                Share this with others so they can invite you to a server
+              </span>
+            </p>
+            {connectionStrings.map((addr, idx) => (
+              <div key={idx} className={styles.connStringRow}>
+                <code className={styles.connString}>{addr}</code>
+                <button
+                  className={styles.copyBtn}
+                  onClick={() => handleCopy(addr, idx)}
+                  title="Copy to clipboard"
+                >
+                  {copiedIdx === idx ? "✓ Copied!" : "Copy"}
+                </button>
+              </div>
+            ))}
           </div>
         )}
 
