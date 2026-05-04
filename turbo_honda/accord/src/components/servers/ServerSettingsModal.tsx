@@ -49,6 +49,11 @@ export function ServerSettingsModal({ serverId, serverName, serverAvatarUrl, onC
     }
   }
 
+  function handleAvatarError() {
+    setAvatarUrl("");
+    setAvatarPreview("");
+  }
+
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -62,7 +67,7 @@ export function ServerSettingsModal({ serverId, serverName, serverAvatarUrl, onC
                 src={avatarPreview}
                 alt="Server avatar"
                 className={styles.avatarPreview}
-                onError={() => { setAvatarPreview(""); setAvatarUrl(""); }}
+                onError={handleAvatarError}
               />
             ) : (
               <div className={styles.avatarPlaceholder}>
