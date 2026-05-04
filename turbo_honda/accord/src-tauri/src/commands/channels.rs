@@ -32,7 +32,7 @@ pub async fn create_channel(
     log::info!("Creating channel name={name:?} kind={kind:?} server_id={server_id:?}");
     let result = state
         .db
-        .create_channel(name.clone(), kind.clone(), server_id.clone())
+        .create_channel(name.clone(), kind, server_id)
         .await
         .map_err(|e| e.to_string());
     match &result {
@@ -97,11 +97,11 @@ pub async fn send_message(
 
     let mut msg = state
         .db
-        .send_message(channel_id.clone(), encrypted, author_peer_id)
+        .send_message(channel_id, encrypted, author_peer_id)
         .await
         .map_err(|e| e.to_string())?;
 
-    log::debug!("Message stored id={} channel={channel_id}", msg.id);
+    log::debug!("Message stored id={} channel={}", msg.id, msg.channel_id);
     // Return plaintext to the UI.
     msg.content = content;
     Ok(msg)

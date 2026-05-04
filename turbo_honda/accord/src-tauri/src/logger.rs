@@ -5,7 +5,7 @@
 //! the frontend can query via the `get_logs` Tauri command.
 
 use chrono::Utc;
-use log::{Level, LevelFilter, Log, Metadata, Record};
+use log::{Level, Log, Metadata, Record};
 use serde::Serialize;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -133,7 +133,7 @@ pub fn init() -> LogStore {
 
     log::set_boxed_logger(Box::new(logger))
         .expect("global logger already set");
-    log::set_max_level(LevelFilter::max().min(max_level));
+    log::set_max_level(max_level);
 
     store
 }
