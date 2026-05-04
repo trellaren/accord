@@ -6,13 +6,14 @@ import { ServerRail } from "../servers/ServerRail";
 import { MemberPanel } from "./MemberPanel";
 import { VoiceStatusBar } from "./VoiceStatusBar";
 import { UserProfileModal } from "../user/UserProfileModal";
+import { ServerInviteModal } from "../servers/ServerInviteModal";
 import { useAppStore } from "../../store/useAppStore";
 import { useKeybinds } from "../../lib/useKeybinds";
 import styles from "./AppLayout.module.css";
 
 export function AppLayout() {
   useKeybinds();
-  const { userProfile, localPeerId } = useAppStore();
+  const { userProfile, localPeerId, pendingInvites } = useAppStore();
   const [showProfile, setShowProfile] = useState(false);
 
   // Display name: prefer set display name, fall back to truncated peer ID.
@@ -68,6 +69,7 @@ export function AppLayout() {
       <MemberPanel />
 
       {showProfile && <UserProfileModal onClose={() => setShowProfile(false)} />}
+      {pendingInvites.length > 0 && <ServerInviteModal invites={pendingInvites} />}
     </div>
   );
 }

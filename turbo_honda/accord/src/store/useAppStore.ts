@@ -5,6 +5,7 @@ import {
   MessagePayload,
   PeerInfo,
   ServerInfo,
+  ServerInvitePayload,
   ServerRole,
   UserProfile,
   AudioDevice,
@@ -97,6 +98,9 @@ interface AppState {
   // Channel permissions: channel_id → list of permission overrides
   channelPermissions: Record<string, ChannelPermission[]>;
 
+  // Pending server invites received from remote peers (awaiting user decision)
+  pendingInvites: ServerInvitePayload[];
+
   // Actions
   initNode: () => Promise<void>;
 
@@ -129,8 +133,12 @@ interface AppState {
   loadChannelMembers: (channelId: string) => Promise<void>;
   /** Queue a server invite to be sent to the peer at peerAddress once connected. */
   invitePeer: (peerAddress: string, serverId: string) => Promise<void>;
-  /** Poll for received server invites and auto-join them. */
+  /** Poll for received server invites and queue them for user review. */
   processPendingServerInvites: () => Promise<void>;
+  /** Accept a pending server invite and join the server. */
+  acceptInvite: (invite: ServerInvitePayload) => Promise<void>;
+  /** Dismiss a pending server invite without joining. */
+  dismissInvite: (inviteCode: string) => void;
 
   // VoIP / video actions
   joinVoice: (channelId: string) => Promise<void>;
@@ -195,6 +203,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   userProfile: null,
   serverRoles: {},
   channelPermissions: {},
+  pendingInvites: [],
 
   initNode: async () => {
     const peerId = await getLocalPeerId();
@@ -335,19 +344,41 @@ export const useAppStore = create<AppState>((set, get) => ({
   processPendingServerInvites: async () => {
     const invites = await getPendingServerInvites();
     if (invites.length === 0) return;
-    for (const invite of invites) {
-      try {
-        const server = await joinServer(invite.invite_code);
-        set((s) => {
-          const exists = s.servers.some((sv) => sv.id === server.id);
-          return {
-            servers: exists ? s.servers : [...s.servers, server],
-          };
-        });
-      } catch (err) {
-        console.error("Failed to auto-join server from invite:", err);
-      }
+    // Queue invites for user review rather than auto-joining.
+    set((s) => {
+      const existing = new Set(s.pendingInvites.map((i) => i.invite_code));
+      const newInvites = invites.filter((i) => !existing.has(i.invite_code));
+      if (newInvites.length === 0) return s;
+      return { pendingInvites: [...s.pendingInvites, ...newInvites] };
+    });
+  },
+
+  acceptInvite: async (invite) => {
+    try {
+      const server = await joinServer(invite.invite_code);
+      set((s) => {
+        const exists = s.servers.some((sv) => sv.id === server.id);
+        return {
+          servers: exists ? s.servers : [...s.servers, server],
+          activeServerId: server.id,
+          pendingInvites: s.pendingInvites.filter(
+            (i) => i.invite_code !== invite.invite_code,
+          ),
+        };
+      });
+      // Load channels for the newly joined server.
+      const { loadChannels } = get();
+      await loadChannels(server.id);
+    } catch (err) {
+      console.error("Failed to join server from invite:", err);
+      throw err;
     }
+  },
+
+  dismissInvite: (inviteCode) => {
+    set((s) => ({
+      pendingInvites: s.pendingInvites.filter((i) => i.invite_code !== inviteCode),
+    }));
   },
 
   // ── VoIP / video ──────────────────────────────────────────────────────────
