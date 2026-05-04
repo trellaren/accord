@@ -80,6 +80,8 @@ type PeerMap = Arc<Mutex<HashMap<String, PeerInfo>>>;
 type PresenceMap = Arc<Mutex<HashMap<String, Option<String>>>>;
 type PendingOutboundInvites = Arc<Mutex<Vec<PendingOutboundInvite>>>;
 type PendingReceivedInvites = Arc<Mutex<Vec<ServerInviteMessage>>>;
+/// Accumulates all addresses the swarm is listening on.
+type ListenAddrs = Arc<Mutex<Vec<String>>>;
 
 /// Handle to the local libp2p node.
 ///
@@ -96,6 +98,8 @@ pub struct P2PNode {
     pending_outbound_invites: PendingOutboundInvites,
     /// Server invites received from remote peers, waiting to be consumed.
     pending_received_invites: PendingReceivedInvites,
+    /// All listen addresses reported by the swarm.
+    listen_addrs: ListenAddrs,
 }
 
 impl P2PNode {
@@ -195,6 +199,10 @@ impl P2PNode {
             Arc::new(Mutex::new(Vec::new()));
         let pending_received_task = Arc::clone(&pending_received_invites);
 
+        // Accumulate all local listen addresses (updated by the swarm event loop).
+        let listen_addrs: ListenAddrs = Arc::new(Mutex::new(Vec::new()));
+        let listen_addrs_task = Arc::clone(&listen_addrs);
+
         // Spawn the swarm event loop on the Tokio runtime that Tauri already provides.
         tokio::spawn(async move {
             loop {
@@ -205,6 +213,7 @@ impl P2PNode {
                         match event {
                             SwarmEvent::NewListenAddr { address, .. } => {
                                 log::info!("Listening on {address}");
+                                listen_addrs_task.lock().unwrap().push(address.to_string());
                             }
                             SwarmEvent::ConnectionEstablished { peer_id, endpoint, .. } => {
                                 let address = endpoint.get_remote_address().to_string();
@@ -379,12 +388,18 @@ impl P2PNode {
             discovery_started: false,
             pending_outbound_invites,
             pending_received_invites,
+            listen_addrs,
         }
     }
 
     /// Return the local PeerId as a base58 string.
     pub fn local_peer_id(&self) -> String {
         self.local_peer_id.clone()
+    }
+
+    /// Return all addresses the local node is currently listening on.
+    pub fn listen_addresses(&self) -> Vec<String> {
+        self.listen_addrs.lock().unwrap().clone()
     }
 
     /// Dial a remote peer by multiaddr string.

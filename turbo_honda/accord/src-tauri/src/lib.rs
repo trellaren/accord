@@ -138,6 +138,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // P2P
             commands::p2p::get_local_peer_id,
+            commands::p2p::get_local_peer_address,
             commands::p2p::connect_to_peer,
             commands::p2p::disconnect_peer,
             commands::p2p::list_peers,
@@ -175,6 +176,16 @@ pub fn run() {
             commands::servers::leave_server,
             commands::servers::delete_server,
             commands::servers::update_server,
+            // Roles & permissions
+            commands::roles::create_role,
+            commands::roles::list_roles,
+            commands::roles::update_role,
+            commands::roles::delete_role,
+            commands::roles::assign_member_role,
+            commands::roles::remove_member_role,
+            commands::roles::get_member_roles,
+            commands::roles::set_channel_permission,
+            commands::roles::get_channel_permissions,
             // User profile
             commands::user::get_user_profile,
             commands::user::set_user_profile,

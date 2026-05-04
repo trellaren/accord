@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useAppStore } from "../../store/useAppStore";
+import { RolesManagementModal } from "./RolesManagementModal";
 import styles from "./ServerSettingsModal.module.css";
 
 interface Props {
@@ -9,8 +10,11 @@ interface Props {
   onClose: () => void;
 }
 
+type Tab = "general" | "roles";
+
 export function ServerSettingsModal({ serverId, serverName, serverAvatarUrl, onClose }: Props) {
   const { updateExistingServer } = useAppStore();
+  const [tab, setTab] = useState<Tab>("general");
   const [name, setName] = useState(serverName);
   const [avatarUrl, setAvatarUrl] = useState(serverAvatarUrl);
   const [avatarPreview, setAvatarPreview] = useState(serverAvatarUrl);
@@ -59,83 +63,109 @@ export function ServerSettingsModal({ serverId, serverName, serverAvatarUrl, onC
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <h2 className={styles.title}>Server Settings</h2>
 
-        <form onSubmit={handleSubmit} className={styles.form}>
-          {/* Avatar */}
-          <div className={styles.avatarSection}>
-            {avatarPreview ? (
-              <img
-                src={avatarPreview}
-                alt="Server avatar"
-                className={styles.avatarPreview}
-                onError={handleAvatarError}
-              />
-            ) : (
-              <div className={styles.avatarPlaceholder}>
-                {(name || "S").slice(0, 2).toUpperCase()}
+        {/* Tab bar */}
+        <div className={styles.tabs}>
+          <button
+            className={`${styles.tab} ${tab === "general" ? styles.tabActive : ""}`}
+            onClick={() => setTab("general")}
+          >
+            General
+          </button>
+          <button
+            className={`${styles.tab} ${tab === "roles" ? styles.tabActive : ""}`}
+            onClick={() => setTab("roles")}
+          >
+            Roles
+          </button>
+        </div>
+
+        {tab === "general" && (
+          <form onSubmit={handleSubmit} className={styles.form}>
+            {/* Avatar */}
+            <div className={styles.avatarSection}>
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt="Server avatar"
+                  className={styles.avatarPreview}
+                  onError={handleAvatarError}
+                />
+              ) : (
+                <div className={styles.avatarPlaceholder}>
+                  {(name || "S").slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div className={styles.avatarActions}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={handleFileChange}
+                />
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={loading}
+                >
+                  Choose Image
+                </button>
+                {avatarPreview && (
+                  <button
+                    type="button"
+                    className={styles.btnDanger}
+                    onClick={() => { setAvatarUrl(""); setAvatarPreview(""); }}
+                    disabled={loading}
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
-            )}
-            <div className={styles.avatarActions}>
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label}>Server Name</label>
               <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                style={{ display: "none" }}
-                onChange={handleFileChange}
+                className={styles.input}
+                placeholder="Server name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={loading}
+                maxLength={64}
               />
+            </div>
+
+            {error && <p className={styles.error}>{error}</p>}
+            {saved && <p className={styles.success}>✓ Saved!</p>}
+
+            <div className={styles.actions}>
               <button
                 type="button"
                 className={styles.btnSecondary}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={onClose}
                 disabled={loading}
               >
-                Choose Image
+                Close
               </button>
-              {avatarPreview && (
-                <button
-                  type="button"
-                  className={styles.btnDanger}
-                  onClick={() => { setAvatarUrl(""); setAvatarPreview(""); }}
-                  disabled={loading}
-                >
-                  Remove
-                </button>
-              )}
+              <button
+                type="submit"
+                className={styles.btnPrimary}
+                disabled={loading || !name.trim()}
+              >
+                {loading ? "Saving…" : "Save Changes"}
+              </button>
             </div>
-          </div>
+          </form>
+        )}
 
-          <div className={styles.field}>
-            <label className={styles.label}>Server Name</label>
-            <input
-              className={styles.input}
-              placeholder="Server name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={loading}
-              maxLength={64}
-            />
-          </div>
-
-          {error && <p className={styles.error}>{error}</p>}
-          {saved && <p className={styles.success}>✓ Saved!</p>}
-
-          <div className={styles.actions}>
-            <button
-              type="button"
-              className={styles.btnSecondary}
-              onClick={onClose}
-              disabled={loading}
-            >
-              Close
-            </button>
-            <button
-              type="submit"
-              className={styles.btnPrimary}
-              disabled={loading || !name.trim()}
-            >
-              {loading ? "Saving…" : "Save Changes"}
-            </button>
-          </div>
-        </form>
+        {tab === "roles" && (
+          <RolesManagementModal
+            serverId={serverId}
+            onClose={() => setTab("general")}
+            embedded
+          />
+        )}
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ use sqlx::{sqlite::SqlitePool, Row};
 use uuid::Uuid;
 
 use crate::commands::channels::{ChannelInfo, MessagePayload};
+use crate::commands::roles::{ChannelPermission, ServerRole};
 use crate::commands::servers::ServerInfo;
 use crate::commands::user::UserProfile;
 
@@ -185,6 +186,46 @@ impl Db {
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_messages_channel_ts
              ON messages (channel_id, timestamp)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // ── Server roles ──────────────────────────────────────────────────────
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS server_roles (
+                id          TEXT PRIMARY KEY,
+                server_id   TEXT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+                name        TEXT NOT NULL,
+                color       TEXT NOT NULL DEFAULT '#99aab5',
+                permissions INTEGER NOT NULL DEFAULT 3
+            )",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS server_member_roles (
+                server_id   TEXT NOT NULL,
+                peer_id     TEXT NOT NULL,
+                role_id     TEXT NOT NULL REFERENCES server_roles(id) ON DELETE CASCADE,
+                PRIMARY KEY (server_id, peer_id, role_id)
+            )",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // ── Channel permissions ───────────────────────────────────────────────
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS channel_permissions (
+                id          TEXT PRIMARY KEY,
+                channel_id  TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+                role_id     TEXT NOT NULL REFERENCES server_roles(id) ON DELETE CASCADE,
+                allow       INTEGER NOT NULL DEFAULT 0,
+                deny        INTEGER NOT NULL DEFAULT 0,
+                UNIQUE (channel_id, role_id)
+            )",
         )
         .execute(&self.pool)
         .await?;
@@ -638,6 +679,231 @@ impl Db {
             video_device_id,
         })
     }
+
+    // ── Server roles ──────────────────────────────────────────────────────────
+
+    /// Create a new role for a server.
+    pub async fn create_role(
+        &self,
+        server_id: String,
+        name: String,
+        color: String,
+        permissions: i64,
+    ) -> Result<ServerRole> {
+        let id = Uuid::new_v4().to_string();
+        sqlx::query(
+            "INSERT INTO server_roles (id, server_id, name, color, permissions) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(&id)
+        .bind(&server_id)
+        .bind(&name)
+        .bind(&color)
+        .bind(permissions)
+        .execute(&self.pool)
+        .await?;
+        Ok(ServerRole { id, server_id, name, color, permissions })
+    }
+
+    /// Return all roles for a server, ordered by name.
+    pub async fn list_roles(&self, server_id: &str) -> Result<Vec<ServerRole>> {
+        let rows = sqlx::query(
+            "SELECT id, server_id, name, color, permissions FROM server_roles WHERE server_id = ? ORDER BY name",
+        )
+        .bind(server_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| ServerRole {
+                id: row.get("id"),
+                server_id: row.get("server_id"),
+                name: row.get("name"),
+                color: row.get("color"),
+                permissions: row.get("permissions"),
+            })
+            .collect())
+    }
+
+    /// Return a single role by id.
+    pub async fn get_role(&self, role_id: &str) -> Result<ServerRole> {
+        let row = sqlx::query(
+            "SELECT id, server_id, name, color, permissions FROM server_roles WHERE id = ?",
+        )
+        .bind(role_id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or_else(|| anyhow!("Role '{role_id}' not found"))?;
+        Ok(ServerRole {
+            id: row.get("id"),
+            server_id: row.get("server_id"),
+            name: row.get("name"),
+            color: row.get("color"),
+            permissions: row.get("permissions"),
+        })
+    }
+
+    /// Update an existing role.
+    pub async fn update_role(
+        &self,
+        role_id: &str,
+        name: &str,
+        color: &str,
+        permissions: i64,
+    ) -> Result<ServerRole> {
+        let rows = sqlx::query(
+            "UPDATE server_roles SET name = ?, color = ?, permissions = ? WHERE id = ?",
+        )
+        .bind(name)
+        .bind(color)
+        .bind(permissions)
+        .bind(role_id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+        if rows == 0 {
+            return Err(anyhow!("Role '{role_id}' not found"));
+        }
+        self.get_role(role_id).await
+    }
+
+    /// Delete a role (cascades to member-role assignments and channel permission overrides).
+    pub async fn delete_role(&self, role_id: &str) -> Result<()> {
+        let rows = sqlx::query("DELETE FROM server_roles WHERE id = ?")
+            .bind(role_id)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
+        if rows == 0 {
+            return Err(anyhow!("Role '{role_id}' not found"));
+        }
+        Ok(())
+    }
+
+    // ── Member-role assignments ───────────────────────────────────────────────
+
+    /// Assign a role to a server member.
+    pub async fn assign_member_role(
+        &self,
+        server_id: &str,
+        peer_id: &str,
+        role_id: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT OR IGNORE INTO server_member_roles (server_id, peer_id, role_id) VALUES (?, ?, ?)",
+        )
+        .bind(server_id)
+        .bind(peer_id)
+        .bind(role_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Remove a role from a server member.
+    pub async fn remove_member_role(
+        &self,
+        server_id: &str,
+        peer_id: &str,
+        role_id: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            "DELETE FROM server_member_roles WHERE server_id = ? AND peer_id = ? AND role_id = ?",
+        )
+        .bind(server_id)
+        .bind(peer_id)
+        .bind(role_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Return all roles assigned to `peer_id` in `server_id`.
+    pub async fn get_member_roles(&self, server_id: &str, peer_id: &str) -> Result<Vec<ServerRole>> {
+        let rows = sqlx::query(
+            "SELECT r.id, r.server_id, r.name, r.color, r.permissions
+             FROM server_roles r
+             INNER JOIN server_member_roles mr ON mr.role_id = r.id
+             WHERE mr.server_id = ? AND mr.peer_id = ?
+             ORDER BY r.name",
+        )
+        .bind(server_id)
+        .bind(peer_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| ServerRole {
+                id: row.get("id"),
+                server_id: row.get("server_id"),
+                name: row.get("name"),
+                color: row.get("color"),
+                permissions: row.get("permissions"),
+            })
+            .collect())
+    }
+
+    // ── Channel permissions ───────────────────────────────────────────────────
+
+    /// Upsert a channel permission override for a role.
+    pub async fn set_channel_permission(
+        &self,
+        channel_id: &str,
+        role_id: &str,
+        allow: i64,
+        deny: i64,
+    ) -> Result<ChannelPermission> {
+        let id = Uuid::new_v4().to_string();
+        sqlx::query(
+            "INSERT INTO channel_permissions (id, channel_id, role_id, allow, deny)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(channel_id, role_id) DO UPDATE SET
+                allow = excluded.allow,
+                deny  = excluded.deny",
+        )
+        .bind(&id)
+        .bind(channel_id)
+        .bind(role_id)
+        .bind(allow)
+        .bind(deny)
+        .execute(&self.pool)
+        .await?;
+
+        // Re-fetch the actual row (the id may have been the pre-existing one).
+        let row = sqlx::query(
+            "SELECT id, channel_id, role_id, allow, deny FROM channel_permissions WHERE channel_id = ? AND role_id = ?",
+        )
+        .bind(channel_id)
+        .bind(role_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(ChannelPermission {
+            id: row.get("id"),
+            channel_id: row.get("channel_id"),
+            role_id: row.get("role_id"),
+            allow: row.get("allow"),
+            deny: row.get("deny"),
+        })
+    }
+
+    /// Return all permission overrides for a channel.
+    pub async fn get_channel_permissions(&self, channel_id: &str) -> Result<Vec<ChannelPermission>> {
+        let rows = sqlx::query(
+            "SELECT id, channel_id, role_id, allow, deny FROM channel_permissions WHERE channel_id = ?",
+        )
+        .bind(channel_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| ChannelPermission {
+                id: row.get("id"),
+                channel_id: row.get("channel_id"),
+                role_id: row.get("role_id"),
+                allow: row.get("allow"),
+                deny: row.get("deny"),
+            })
+            .collect())
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -969,5 +1235,103 @@ mod tests {
             .await
             .expect("create_channel should succeed after migration");
         assert_eq!(ch.server_id, Some(sid));
+    }
+
+    // ── Roles & permissions tests ─────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_create_and_list_roles() {
+        let db = in_memory_db().await;
+        let sid = make_server(&db).await;
+
+        let role = db
+            .create_role(sid.clone(), "Moderator".into(), "#ff0000".into(), 7)
+            .await
+            .unwrap();
+        assert_eq!(role.name, "Moderator");
+        assert_eq!(role.color, "#ff0000");
+        assert_eq!(role.permissions, 7);
+
+        let roles = db.list_roles(&sid).await.unwrap();
+        assert_eq!(roles.len(), 1);
+        assert_eq!(roles[0].id, role.id);
+    }
+
+    #[tokio::test]
+    async fn test_update_role() {
+        let db = in_memory_db().await;
+        let sid = make_server(&db).await;
+        let role = db
+            .create_role(sid, "Member".into(), "#99aab5".into(), 3)
+            .await
+            .unwrap();
+
+        let updated = db.update_role(&role.id, "Member+", "#00ff00", 15).await.unwrap();
+        assert_eq!(updated.name, "Member+");
+        assert_eq!(updated.color, "#00ff00");
+        assert_eq!(updated.permissions, 15);
+    }
+
+    #[tokio::test]
+    async fn test_delete_role() {
+        let db = in_memory_db().await;
+        let sid = make_server(&db).await;
+        let role = db
+            .create_role(sid.clone(), "Temp".into(), "#ffffff".into(), 1)
+            .await
+            .unwrap();
+        db.delete_role(&role.id).await.unwrap();
+        assert!(db.list_roles(&sid).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_member_role_assignment() {
+        let db = in_memory_db().await;
+        let sid = make_server(&db).await;
+        let role = db
+            .create_role(sid.clone(), "Admin".into(), "#ffd700".into(), 63)
+            .await
+            .unwrap();
+
+        db.assign_member_role(&sid, "peer1", &role.id).await.unwrap();
+        let roles = db.get_member_roles(&sid, "peer1").await.unwrap();
+        assert_eq!(roles.len(), 1);
+        assert_eq!(roles[0].id, role.id);
+
+        db.remove_member_role(&sid, "peer1", &role.id).await.unwrap();
+        assert!(db.get_member_roles(&sid, "peer1").await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_channel_permissions() {
+        let db = in_memory_db().await;
+        let sid = make_server(&db).await;
+        let ch = db
+            .create_channel("secret".into(), "text".into(), Some(sid.clone()))
+            .await
+            .unwrap();
+        let role = db
+            .create_role(sid, "Guest".into(), "#aabbcc".into(), 1)
+            .await
+            .unwrap();
+
+        let perm = db
+            .set_channel_permission(&ch.id, &role.id, 0, 1)
+            .await
+            .unwrap();
+        assert_eq!(perm.allow, 0);
+        assert_eq!(perm.deny, 1);
+
+        // Upsert should update values.
+        let perm2 = db
+            .set_channel_permission(&ch.id, &role.id, 1, 0)
+            .await
+            .unwrap();
+        assert_eq!(perm2.id, perm.id);
+        assert_eq!(perm2.allow, 1);
+        assert_eq!(perm2.deny, 0);
+
+        let all = db.get_channel_permissions(&ch.id).await.unwrap();
+        assert_eq!(all.len(), 1);
     }
 }

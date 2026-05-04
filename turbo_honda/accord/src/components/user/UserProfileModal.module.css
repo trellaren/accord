@@ -235,3 +235,69 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Connection string section */
+.connStringSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.connStringLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.connStringHint {
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text-muted);
+}
+
+.connStringRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.connString {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-secondary);
+  word-break: break-all;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+}
+
+.copyBtn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: all 0.1s;
+  white-space: nowrap;
+}
+
+.copyBtn:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}

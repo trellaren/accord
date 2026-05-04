@@ -121,3 +121,20 @@ pub async fn get_pending_server_invites(
     let node = state.p2p.lock().map_err(|e| e.to_string())?;
     Ok(node.take_received_server_invites())
 }
+
+/// Return all multiaddresses the local libp2p node is listening on.
+///
+/// The returned strings are full multiaddr strings such as
+/// `/ip4/192.168.1.5/tcp/44321/p2p/<peer-id>` that other users can paste into
+/// the "Invite by peer address" field.
+#[tauri::command]
+pub async fn get_local_peer_address(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let node = state.p2p.lock().map_err(|e| e.to_string())?;
+    let peer_id = node.local_peer_id();
+    let addrs = node
+        .listen_addresses()
+        .into_iter()
+        .map(|a| format!("{a}/p2p/{peer_id}"))
+        .collect();
+    Ok(addrs)
+}

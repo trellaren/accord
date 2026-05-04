@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
-import { Hash, Volume2, Link, Users, Plus, RefreshCw, Signal, MapPin } from "lucide-react";
+import { Hash, Volume2, Link, Users, Plus, RefreshCw, Signal, MapPin, Lock } from "lucide-react";
 import { useAppStore } from "../../store/useAppStore";
 import { ChannelInfo } from "../../lib/tauri";
 import { InviteCodeModal } from "../servers/InviteCodeModal";
 import { ServerMembersModal } from "../servers/ServerMembersModal";
+import { ChannelPermissionsModal } from "../servers/ChannelPermissionsModal";
 import styles from "./Sidebar.module.css";
 
 export function Sidebar() {
@@ -37,6 +38,7 @@ export function Sidebar() {
   const [newChannelKind, setNewChannelKind] = useState<"text" | "voice">("text");
   const [showInvite, setShowInvite] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+  const [channelPermsTarget, setChannelPermsTarget] = useState<ChannelInfo | null>(null);
 
   // Channels to display: filter by active server if one is selected.
   const visibleChannels = activeServerId
@@ -47,6 +49,7 @@ export function Sidebar() {
   const voiceChannels = visibleChannels.filter((c) => c.kind === "voice");
 
   const activeServer = servers.find((s) => s.id === activeServerId);
+  const isOwner = activeServer?.owner_peer_id === localPeerId;
 
   function handleSelect(channel: ChannelInfo) {
     selectChannel(channel.id);
@@ -118,7 +121,9 @@ export function Sidebar() {
             localPeerId={null}
             localDisplayName={null}
             localAvatarUrl={null}
+            isOwner={isOwner}
             onSelect={handleSelect}
+            onOpenPerms={(c) => setChannelPermsTarget(c)}
           />
           <ChannelSection
             title="Voice Channels"
@@ -130,7 +135,9 @@ export function Sidebar() {
             localPeerId={localPeerId}
             localDisplayName={userProfile?.display_name ?? null}
             localAvatarUrl={userProfile?.avatar_url ?? null}
+            isOwner={isOwner}
             onSelect={handleSelect}
+            onOpenPerms={(c) => setChannelPermsTarget(c)}
           />
 
           {/* Add channel */}
@@ -241,6 +248,14 @@ export function Sidebar() {
           onClose={() => setShowMembers(false)}
         />
       )}
+      {channelPermsTarget && activeServerId && (
+        <ChannelPermissionsModal
+          channelId={channelPermsTarget.id}
+          channelName={channelPermsTarget.name}
+          serverId={activeServerId}
+          onClose={() => setChannelPermsTarget(null)}
+        />
+      )}
     </>
   );
 }
@@ -264,7 +279,10 @@ interface ChannelSectionProps {
   localDisplayName: string | null;
   /** Local user's avatar URL (from profile). */
   localAvatarUrl: string | null;
+  /** Whether the current user is the server owner (shows permissions button). */
+  isOwner: boolean;
   onSelect: (c: ChannelInfo) => void;
+  onOpenPerms: (c: ChannelInfo) => void;
 }
 
 /** Small circular avatar that shows an image or falls back to initials. */
@@ -306,7 +324,9 @@ function ChannelSection({
   localPeerId,
   localDisplayName,
   localAvatarUrl,
+  isOwner,
   onSelect,
+  onOpenPerms,
 }: ChannelSectionProps) {
   return (
     <div className={styles.section}>
@@ -324,15 +344,26 @@ function ChannelSection({
 
         return (
           <div key={c.id}>
-            <button
-              className={clsx(styles.channelBtn, c.id === activeId && styles.channelBtnActive)}
-              onClick={() => onSelect(c)}
-            >
-              <span className={styles.channelIcon}>
-                {c.kind === "voice" ? <Volume2 size={14} /> : <Hash size={14} />}
-              </span>
-              <span>{c.name}</span>
-            </button>
+            <div className={styles.channelRow}>
+              <button
+                className={clsx(styles.channelBtn, c.id === activeId && styles.channelBtnActive)}
+                onClick={() => onSelect(c)}
+              >
+                <span className={styles.channelIcon}>
+                  {c.kind === "voice" ? <Volume2 size={14} /> : <Hash size={14} />}
+                </span>
+                <span>{c.name}</span>
+              </button>
+              {isOwner && (
+                <button
+                  className={styles.channelPermsBtn}
+                  onClick={() => onOpenPerms(c)}
+                  title="Channel Permissions"
+                >
+                  <Lock size={11} />
+                </button>
+              )}
+            </div>
 
             {/* Local user below the channel they joined */}
             {localInThisChannel && (
