@@ -1,18 +1,62 @@
 import { useState } from "react";
 import clsx from "clsx";
+import { Plus, Link, Zap } from "lucide-react";
 import { useAppStore } from "../../store/useAppStore";
 import { CreateServerModal } from "./CreateServerModal";
 import { JoinServerModal } from "./JoinServerModal";
+import { ServerContextMenu } from "./ServerContextMenu";
+import { DeleteServerModal } from "./DeleteServerModal";
 import styles from "./ServerRail.module.css";
 
+interface ContextMenuState {
+  serverId: string;
+  serverName: string;
+  isOwner: boolean;
+  x: number;
+  y: number;
+}
+
 export function ServerRail() {
-  const { servers, activeServerId, selectServer, loadChannels } = useAppStore();
+  const {
+    servers,
+    activeServerId,
+    localPeerId,
+    selectServer,
+    loadChannels,
+    leaveExistingServer,
+    deleteExistingServer,
+  } = useAppStore();
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   function handleSelectServer(id: string) {
     selectServer(id);
     loadChannels(id);
+  }
+
+  function handleContextMenu(
+    e: React.MouseEvent,
+    serverId: string,
+    serverName: string,
+    isOwner: boolean,
+  ) {
+    e.preventDefault();
+    setContextMenu({ serverId, serverName, isOwner, x: e.clientX, y: e.clientY });
+  }
+
+  function handleDisconnect() {
+    selectServer(null);
+    loadChannels(null);
+  }
+
+  async function handleLeave(serverId: string) {
+    await leaveExistingServer(serverId);
+  }
+
+  function handleDeleteRequest(serverId: string, serverName: string) {
+    setDeleteTarget({ id: serverId, name: serverName });
   }
 
   return (
@@ -28,7 +72,7 @@ export function ServerRail() {
           }}
           title="Home"
         >
-          ⚡
+          <Zap size={20} />
         </button>
 
         <div className={styles.divider} />
@@ -41,6 +85,9 @@ export function ServerRail() {
               s.id === activeServerId && styles.serverBtnActive,
             )}
             onClick={() => handleSelectServer(s.id)}
+            onContextMenu={(e) =>
+              handleContextMenu(e, s.id, s.name, s.owner_peer_id === localPeerId)
+            }
             title={s.name}
           >
             {s.name.slice(0, 2).toUpperCase()}
@@ -55,7 +102,7 @@ export function ServerRail() {
           onClick={() => setShowCreate(true)}
           title="Create a server"
         >
-          +
+          <Plus size={20} />
         </button>
 
         {/* Join server */}
@@ -64,12 +111,34 @@ export function ServerRail() {
           onClick={() => setShowJoin(true)}
           title="Join a server"
         >
-          🔗
+          <Link size={20} />
         </button>
       </nav>
 
       {showCreate && <CreateServerModal onClose={() => setShowCreate(false)} />}
       {showJoin && <JoinServerModal onClose={() => setShowJoin(false)} />}
+
+      {contextMenu && (
+        <ServerContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          serverId={contextMenu.serverId}
+          serverName={contextMenu.serverName}
+          isOwner={contextMenu.isOwner}
+          onClose={() => setContextMenu(null)}
+          onDisconnect={handleDisconnect}
+          onLeave={() => handleLeave(contextMenu.serverId)}
+          onDelete={() => handleDeleteRequest(contextMenu.serverId, contextMenu.serverName)}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteServerModal
+          serverName={deleteTarget.name}
+          onConfirm={() => deleteExistingServer(deleteTarget.id)}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
     </>
   );
 }
