@@ -113,7 +113,6 @@ export function Sidebar() {
             channels={textChannels}
             activeId={activeChannelId}
             peers={peers}
-            channelMembers={{}}
             voiceChannelId={null}
             localPeerId={null}
             localDisplayName={null}
@@ -253,8 +252,8 @@ interface ChannelSectionProps {
   channels: ChannelInfo[];
   activeId: string | null;
   peers: PeerInfo[];
-  /** Channel-id → peer list from the presence announcements. */
-  channelMembers: Record<string, PeerInfo[]>;
+  /** Channel-id → peer list from the presence announcements. Voice channels only. */
+  channelMembers?: Record<string, PeerInfo[]>;
   /** Channel id the local user is currently in (voice only). */
   voiceChannelId: string | null;
   /** Local user's peer id. */
@@ -274,27 +273,25 @@ function MemberAvatar({
   name: string;
   avatarUrl?: string | null;
 }) {
-  if (avatarUrl) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  const initials = name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("") || "?";
+
+  if (avatarUrl && !imgFailed) {
     return (
       <img
         className={styles.memberAvatarImg}
         src={avatarUrl}
         alt={name}
-        onError={(e) => {
-          // Fall back to the initials avatar if the image fails to load.
-          (e.currentTarget as HTMLImageElement).style.display = "none";
-          const parent = e.currentTarget.parentElement;
-          if (parent) parent.dataset.fallback = "1";
-        }}
+        onError={() => setImgFailed(true)}
       />
     );
   }
-  const initials = name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
-  return <span className={styles.memberAvatar}>{initials || "?"}</span>;
+  return <span className={styles.memberAvatar}>{initials}</span>;
 }
 
 function ChannelSection({
@@ -302,7 +299,7 @@ function ChannelSection({
   channels,
   activeId,
   peers,
-  channelMembers,
+  channelMembers = {},
   voiceChannelId,
   localPeerId,
   localDisplayName,
