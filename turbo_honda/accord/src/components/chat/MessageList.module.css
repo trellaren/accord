@@ -77,3 +77,42 @@
   white-space: pre-wrap;
   line-height: 1.5;
 }
+
+.mediaWrapper {
+  margin-top: 4px;
+  max-width: 400px;
+}
+
+.mediaImage {
+  max-width: 100%;
+  max-height: 400px;
+  border-radius: var(--radius-md);
+  object-fit: contain;
+  display: block;
+  cursor: pointer;
+}
+
+.mediaVideo {
+  max-width: 100%;
+  max-height: 400px;
+  border-radius: var(--radius-md);
+  display: block;
+}
+
+.mediaDownload {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px 12px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-link);
+  text-decoration: none;
+}
+
+.mediaDownload:hover {
+  background: var(--bg-active);
+  text-decoration: underline;
+}

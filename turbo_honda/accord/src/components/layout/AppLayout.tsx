@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
+import { Settings } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { ServerRail } from "../servers/ServerRail";
+import { MemberPanel } from "./MemberPanel";
 import { UserProfileModal } from "../user/UserProfileModal";
 import { useAppStore } from "../../store/useAppStore";
 import styles from "./AppLayout.module.css";
@@ -51,12 +53,16 @@ export function AppLayout() {
             onClick={() => setShowProfile(true)}
             title="User Settings"
           >
-            ⚙
+            <Settings size={16} />
           </button>
         </div>
       </div>
+
+      {/* Right-side member panel */}
+      <MemberPanel />
 
       {showProfile && <UserProfileModal onClose={() => setShowProfile(false)} />}
     </div>
   );
 }
+

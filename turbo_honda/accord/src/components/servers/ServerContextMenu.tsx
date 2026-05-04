@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { LogOut, Trash2, Unplug } from "lucide-react";
+import { LogOut, Trash2, Unplug, Settings } from "lucide-react";
 import styles from "./ServerContextMenu.module.css";
 
 interface Props {
@@ -12,6 +12,7 @@ interface Props {
   onDisconnect: () => void;
   onLeave: () => void;
   onDelete: () => void;
+  onSettings: () => void;
 }
 
 export function ServerContextMenu({
@@ -23,6 +24,7 @@ export function ServerContextMenu({
   onDisconnect,
   onLeave,
   onDelete,
+  onSettings,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -63,6 +65,17 @@ export function ServerContextMenu({
         Disconnect
       </button>
 
+      {isOwner && (
+        <button
+          className={styles.item}
+          onClick={() => { onSettings(); onClose(); }}
+          role="menuitem"
+        >
+          <Settings size={14} />
+          Server Settings
+        </button>
+      )}
+
       {!isOwner && (
         <button
           className={`${styles.item} ${styles.danger}`}
@@ -87,3 +100,4 @@ export function ServerContextMenu({
     </div>
   );
 }
+

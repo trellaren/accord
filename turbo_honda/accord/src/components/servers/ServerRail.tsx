@@ -6,11 +6,13 @@ import { CreateServerModal } from "./CreateServerModal";
 import { JoinServerModal } from "./JoinServerModal";
 import { ServerContextMenu } from "./ServerContextMenu";
 import { DeleteServerModal } from "./DeleteServerModal";
+import { ServerSettingsModal } from "./ServerSettingsModal";
 import styles from "./ServerRail.module.css";
 
 interface ContextMenuState {
   serverId: string;
   serverName: string;
+  serverAvatarUrl: string;
   isOwner: boolean;
   x: number;
   y: number;
@@ -30,6 +32,11 @@ export function ServerRail() {
   const [showJoin, setShowJoin] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [settingsTarget, setSettingsTarget] = useState<{
+    id: string;
+    name: string;
+    avatarUrl: string;
+  } | null>(null);
 
   function handleSelectServer(id: string) {
     selectServer(id);
@@ -40,10 +47,11 @@ export function ServerRail() {
     e: React.MouseEvent,
     serverId: string,
     serverName: string,
+    serverAvatarUrl: string,
     isOwner: boolean,
   ) {
     e.preventDefault();
-    setContextMenu({ serverId, serverName, isOwner, x: e.clientX, y: e.clientY });
+    setContextMenu({ serverId, serverName, serverAvatarUrl, isOwner, x: e.clientX, y: e.clientY });
   }
 
   function handleDisconnect() {
@@ -57,6 +65,10 @@ export function ServerRail() {
 
   function handleDeleteRequest(serverId: string, serverName: string) {
     setDeleteTarget({ id: serverId, name: serverName });
+  }
+
+  function handleSettingsRequest(serverId: string, serverName: string, serverAvatarUrl: string) {
+    setSettingsTarget({ id: serverId, name: serverName, avatarUrl: serverAvatarUrl });
   }
 
   return (
@@ -86,11 +98,20 @@ export function ServerRail() {
             )}
             onClick={() => handleSelectServer(s.id)}
             onContextMenu={(e) =>
-              handleContextMenu(e, s.id, s.name, s.owner_peer_id === localPeerId)
+              handleContextMenu(e, s.id, s.name, s.avatar_url, s.owner_peer_id === localPeerId)
             }
             title={s.name}
           >
-            {s.name.slice(0, 2).toUpperCase()}
+            {s.avatar_url ? (
+              <img
+                src={s.avatar_url}
+                alt={s.name}
+                className={styles.serverAvatar}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              />
+            ) : (
+              s.name.slice(0, 2).toUpperCase()
+            )}
           </button>
         ))}
 
@@ -129,6 +150,13 @@ export function ServerRail() {
           onDisconnect={handleDisconnect}
           onLeave={() => handleLeave(contextMenu.serverId)}
           onDelete={() => handleDeleteRequest(contextMenu.serverId, contextMenu.serverName)}
+          onSettings={() =>
+            handleSettingsRequest(
+              contextMenu.serverId,
+              contextMenu.serverName,
+              contextMenu.serverAvatarUrl,
+            )
+          }
         />
       )}
 
@@ -139,6 +167,16 @@ export function ServerRail() {
           onClose={() => setDeleteTarget(null)}
         />
       )}
+
+      {settingsTarget && (
+        <ServerSettingsModal
+          serverId={settingsTarget.id}
+          serverName={settingsTarget.name}
+          serverAvatarUrl={settingsTarget.avatarUrl}
+          onClose={() => setSettingsTarget(null)}
+        />
+      )}
     </>
   );
 }
+

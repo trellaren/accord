@@ -245,6 +245,12 @@
 .peerChannel {
   font-size: 11px;
   flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.peerPingIcon {
+  color: var(--success);
+  flex-shrink: 0;
 }
 
 .noPeers {

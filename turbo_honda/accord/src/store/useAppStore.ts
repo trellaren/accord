@@ -37,6 +37,7 @@ import {
   deleteServer,
   getUserProfile,
   setUserProfile,
+  updateServer,
 } from "../lib/tauri";
 
 interface AppState {
@@ -90,6 +91,7 @@ interface AppState {
   kickServerMember: (serverId: string, peerId: string) => Promise<void>;
   leaveExistingServer: (serverId: string) => Promise<void>;
   deleteExistingServer: (serverId: string) => Promise<void>;
+  updateExistingServer: (serverId: string, name: string, avatarUrl: string) => Promise<void>;
 
   // Channel actions
   loadChannels: (serverId?: string | null) => Promise<void>;
@@ -212,6 +214,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       servers: s.servers.filter((sv) => sv.id !== serverId),
       activeServerId: s.activeServerId === serverId ? null : s.activeServerId,
       activeChannelId: s.activeServerId === serverId ? null : s.activeChannelId,
+    }));
+  },
+
+  updateExistingServer: async (serverId, name, avatarUrl) => {
+    const server = await updateServer(serverId, name, avatarUrl);
+    set((s) => ({
+      servers: s.servers.map((sv) => (sv.id === serverId ? server : sv)),
     }));
   },
 
