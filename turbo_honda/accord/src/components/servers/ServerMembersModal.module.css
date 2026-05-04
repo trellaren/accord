@@ -68,3 +68,8 @@
 .kickBtn:hover {
   opacity: 0.8;
 }
+
+.inviteSuccess {
+  font-size: 13px;
+  color: var(--success, #3ba55d);
+}

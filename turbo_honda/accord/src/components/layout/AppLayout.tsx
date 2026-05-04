@@ -4,6 +4,7 @@ import { Settings } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { ServerRail } from "../servers/ServerRail";
 import { MemberPanel } from "./MemberPanel";
+import { VoiceStatusBar } from "./VoiceStatusBar";
 import { UserProfileModal } from "../user/UserProfileModal";
 import { useAppStore } from "../../store/useAppStore";
 import styles from "./AppLayout.module.css";
@@ -32,6 +33,9 @@ export function AppLayout() {
         <main className={styles.content}>
           <Outlet />
         </main>
+
+        {/* Persistent voice-channel status bar (shown when in a voice call) */}
+        <VoiceStatusBar />
 
         {/* User area at the bottom */}
         <div className={styles.userArea}>

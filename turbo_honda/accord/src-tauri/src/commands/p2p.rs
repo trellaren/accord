@@ -1,3 +1,4 @@
+use crate::p2p::ServerInviteMessage;
 use crate::AppState;
 use serde::Serialize;
 use tauri::State;
@@ -71,4 +72,52 @@ pub async fn get_peers_in_channel(
 ) -> Result<Vec<PeerInfo>, String> {
     let node = state.p2p.lock().map_err(|e| e.to_string())?;
     Ok(node.peers_in_channel(&channel_id))
+}
+
+/// Queue a server invite to be sent to the peer at `peer_address` once the
+/// connection is established.  Also dials the address immediately.
+///
+/// The remote peer will receive the invite via GossipSub and can call
+/// [`get_pending_server_invites`] to retrieve it.
+#[tauri::command]
+pub async fn invite_peer_to_server(
+    peer_address: String,
+    server_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    // Fetch the server to get its invite code and name.
+    let server = state
+        .db
+        .list_servers()
+        .await
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .find(|s| s.id == server_id)
+        .ok_or_else(|| format!("Server '{server_id}' not found"))?;
+
+    let local_peer_id = {
+        let node = state.p2p.lock().map_err(|e| e.to_string())?;
+        node.local_peer_id()
+    };
+
+    let invite = ServerInviteMessage {
+        invite_code: server.invite_code,
+        server_name: server.name,
+        from_peer_id: local_peer_id,
+    };
+
+    let node = state.p2p.lock().map_err(|e| e.to_string())?;
+    node.queue_server_invite(&peer_address, &invite)
+        .map_err(|e| e.to_string())
+}
+
+/// Return (and clear) all server invites received from remote peers.
+///
+/// The frontend should call this periodically and auto-join any returned servers.
+#[tauri::command]
+pub async fn get_pending_server_invites(
+    state: State<'_, AppState>,
+) -> Result<Vec<ServerInviteMessage>, String> {
+    let node = state.p2p.lock().map_err(|e| e.to_string())?;
+    Ok(node.take_received_server_invites())
 }

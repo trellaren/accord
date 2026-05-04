@@ -4,6 +4,7 @@ import {
   MessagePayload,
   PeerInfo,
   ServerInfo,
+  ServerInvitePayload,
   UserProfile,
   AudioDevice,
   VideoDevice,
@@ -38,6 +39,8 @@ import {
   getUserProfile,
   setUserProfile,
   updateServer,
+  invitePeerToServer,
+  getPendingServerInvites,
 } from "../lib/tauri";
 
 interface AppState {
@@ -57,6 +60,9 @@ interface AppState {
 
   // Peers
   peers: PeerInfo[];
+
+  // Pending server invites received from remote peers (invite_code + server_name)
+  pendingServerInvites: ServerInvitePayload[];
 
   // Active members per channel (channel_id → peer list)
   channelMembers: Record<string, PeerInfo[]>;
@@ -108,6 +114,10 @@ interface AppState {
   announcePresence: (channelId: string | null) => Promise<void>;
   /** Refresh the member list for a specific channel from the backend. */
   loadChannelMembers: (channelId: string) => Promise<void>;
+  /** Queue a server invite to be sent to the peer at peerAddress once connected. */
+  invitePeer: (peerAddress: string, serverId: string) => Promise<void>;
+  /** Poll for received server invites and auto-join them. */
+  processPendingServerInvites: () => Promise<void>;
 
   // VoIP / video actions
   joinVoice: (channelId: string) => Promise<void>;
@@ -144,6 +154,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeChannelId: null,
   messages: {},
   peers: [],
+  pendingServerInvites: [],
   channelMembers: {},
   inVoiceChannel: false,
   voiceChannelId: null,
@@ -285,6 +296,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       channelMembers: { ...s.channelMembers, [channelId]: members },
     }));
+  },
+
+  invitePeer: async (peerAddress, serverId) => {
+    await invitePeerToServer(peerAddress, serverId);
+  },
+
+  processPendingServerInvites: async () => {
+    const invites = await getPendingServerInvites();
+    if (invites.length === 0) return;
+    for (const invite of invites) {
+      try {
+        const server = await joinServer(invite.invite_code);
+        set((s) => {
+          const exists = s.servers.some((sv) => sv.id === server.id);
+          return {
+            servers: exists ? s.servers : [...s.servers, server],
+            pendingServerInvites: [
+              ...s.pendingServerInvites,
+              invite,
+            ],
+          };
+        });
+      } catch (err) {
+        console.error("Failed to auto-join server from invite:", err);
+      }
+    }
   },
 
   // ── VoIP / video ──────────────────────────────────────────────────────────
