@@ -150,6 +150,9 @@ export function VoiceChannel() {
   // Members in this specific channel (remote peers that announced their presence)
   const membersHere = channelId ? (channelMembers[channelId] ?? []) : [];
 
+  // Filter out blocked peers (client-side only).
+  const [blockedPeers, setBlockedPeers] = useState<Set<string>>(() => getBlockedPeers());
+
   const activeServer = servers.find((s) => s.id === activeServerId);
   const isOwner = activeServer?.owner_peer_id === localPeerId;
 
@@ -179,13 +182,14 @@ export function VoiceChannel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeServerId]);
 
-  // Also show peers that haven't announced yet (legacy / offline presence).
+  // Also show peers that haven't announced yet (legacy / offline presence),
+  // excluding locally blocked peers.
   const allVisiblePeers = [
     ...membersHere,
     ...peers.filter(
       (p) => p.channel_id === channelId && !membersHere.some((m) => m.peer_id === p.peer_id),
     ),
-  ];
+  ].filter((p) => !blockedPeers.has(p.peer_id));
 
   const handleStopScreenShare = useCallback(async () => {
     screenStream?.getTracks().forEach((t) => t.stop());
@@ -251,6 +255,7 @@ export function VoiceChannel() {
   function handleBlock(peerId: string) {
     if (!window.confirm(`Block ${peerId.slice(0, 12)}…? They will no longer be visible to you.`)) return;
     blockPeer(peerId);
+    setBlockedPeers((prev) => new Set([...prev, peerId]));
   }
 
   // Build the local user's display name.
@@ -279,8 +284,11 @@ export function VoiceChannel() {
             title={localPeerId}
           >
             <div className={styles.peerCardTop}>
-              <div className={styles.pingIndicator} title="You are connected">
-                <Crown size={12} className={styles.hostIcon} />
+              <div className={styles.pingIndicator} title={isOwner ? "You are the host" : "Connected"}>
+                {isOwner
+                  ? <Crown size={12} className={styles.hostIcon} />
+                  : <Signal size={12} className={styles.signalIcon} />
+                }
               </div>
             </div>
             <div className={clsx(styles.avatar, muted && styles.avatarMuted)}>

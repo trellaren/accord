@@ -173,8 +173,8 @@ export function UserProfileModal({ onClose }: Props) {
       setRecordingAction(null);
     }
 
-    window.addEventListener("keydown", handleKeyDown, { capture: true });
-    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordingAction]);
 
