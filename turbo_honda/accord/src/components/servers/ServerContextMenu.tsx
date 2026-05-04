@@ -17,7 +17,7 @@ interface Props {
 export function ServerContextMenu({
   x,
   y,
-  serverName: _serverName,
+  serverName,
   isOwner,
   onClose,
   onDisconnect,
@@ -50,7 +50,10 @@ export function ServerContextMenu({
       className={styles.menu}
       style={{ top: y, left: x }}
       role="menu"
+      aria-label={`${serverName} options`}
     >
+      <div className={styles.header}>{serverName}</div>
+
       <button
         className={styles.item}
         onClick={() => { onDisconnect(); onClose(); }}
