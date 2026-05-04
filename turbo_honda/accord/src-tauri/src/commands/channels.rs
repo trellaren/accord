@@ -113,8 +113,15 @@ pub async fn get_messages(
     for msg in &mut messages {
         if let Ok(plaintext) = crypto::decrypt_message(&passphrase, &msg.content) {
             msg.content = plaintext;
+        } else {
+            // Log a debug warning; the content may be a legacy plaintext message
+            // stored before encryption was enabled, so we leave it as-is.
+            log::debug!(
+                "message {} in channel {} could not be decrypted (may be legacy plaintext)",
+                msg.id,
+                channel_id
+            );
         }
-        // If decryption fails (legacy plaintext message), leave content as-is.
     }
 
     Ok(messages)

@@ -269,4 +269,7 @@ cargo tauri build
 - [x] End-to-end encryption for text messages (age — passphrase derived from local Ed25519 identity key)
 - [x] System tray integration
 - [x] Auto-update via Tauri updater plugin
+  > **Production note:** populate `plugins.updater.pubkey` in `tauri.conf.json`
+  > with the Ed25519 public key produced by `cargo tauri signer generate`, and
+  > sign release bundles before publishing to the update endpoint.
 - [x] Voice channel shows local user's avatar and display name in the sidebar
