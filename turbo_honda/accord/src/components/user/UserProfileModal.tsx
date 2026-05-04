@@ -158,6 +158,12 @@ export function UserProfileModal({ onClose }: Props) {
     if (!recordingAction) return;
 
     function handleKeyDown(e: KeyboardEvent) {
+      // Escape cancels recording without changing the keybind.
+      if (e.key === "Escape") {
+        recordingRef.current = null;
+        setRecordingAction(null);
+        return;
+      }
       e.preventDefault();
       const key = eventToKeyString(e);
       if (!key) return;
