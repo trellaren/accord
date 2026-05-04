@@ -320,3 +320,9 @@
   opacity: 0.8;
   flex-shrink: 0;
 }
+
+/* Icon for collapse (minus) in add-channel toggle */
+.collapseBtnIcon {
+  font-size: 14px;
+  line-height: 1;
+}

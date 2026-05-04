@@ -141,7 +141,7 @@ export function Sidebar() {
               onClick={() => setShowAddChannel((v) => !v)}
               aria-label="Add channel"
             >
-              {showAddChannel ? <span style={{fontSize:14}}>−</span> : <Plus size={14} />}
+              {showAddChannel ? <span className={styles.collapseBtnIcon}>−</span> : <Plus size={14} />}
             </button>
           </div>
           {showAddChannel && (

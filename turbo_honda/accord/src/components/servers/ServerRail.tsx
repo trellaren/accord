@@ -2,6 +2,7 @@ import { useState } from "react";
 import clsx from "clsx";
 import { Plus, Link, Zap } from "lucide-react";
 import { useAppStore } from "../../store/useAppStore";
+import { ServerInfo } from "../../lib/tauri";
 import { CreateServerModal } from "./CreateServerModal";
 import { JoinServerModal } from "./JoinServerModal";
 import { ServerContextMenu } from "./ServerContextMenu";
@@ -90,29 +91,15 @@ export function ServerRail() {
         <div className={styles.divider} />
 
         {servers.map((s) => (
-          <button
+          <ServerAvatarButton
             key={s.id}
-            className={clsx(
-              styles.serverBtn,
-              s.id === activeServerId && styles.serverBtnActive,
-            )}
-            onClick={() => handleSelectServer(s.id)}
+            server={s}
+            isActive={s.id === activeServerId}
+            onSelect={() => handleSelectServer(s.id)}
             onContextMenu={(e) =>
               handleContextMenu(e, s.id, s.name, s.avatar_url, s.owner_peer_id === localPeerId)
             }
-            title={s.name}
-          >
-            {s.avatar_url ? (
-              <img
-                src={s.avatar_url}
-                alt={s.name}
-                className={styles.serverAvatar}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-              />
-            ) : (
-              s.name.slice(0, 2).toUpperCase()
-            )}
-          </button>
+          />
         ))}
 
         <div className={styles.divider} />
@@ -180,3 +167,37 @@ export function ServerRail() {
   );
 }
 
+// ── Sub-component ─────────────────────────────────────────────────────────────
+
+interface ServerAvatarButtonProps {
+  server: ServerInfo;
+  isActive: boolean;
+  onSelect: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+}
+
+/** Server button that gracefully falls back to initials when the avatar fails to load. */
+function ServerAvatarButton({ server, isActive, onSelect, onContextMenu }: ServerAvatarButtonProps) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const showImage = !!server.avatar_url && !imgFailed;
+
+  return (
+    <button
+      className={clsx(styles.serverBtn, isActive && styles.serverBtnActive)}
+      onClick={onSelect}
+      onContextMenu={onContextMenu}
+      title={server.name}
+    >
+      {showImage ? (
+        <img
+          src={server.avatar_url}
+          alt={server.name}
+          className={styles.serverAvatar}
+          onError={() => setImgFailed(true)}
+        />
+      ) : (
+        server.name.slice(0, 2).toUpperCase()
+      )}
+    </button>
+  );
+}

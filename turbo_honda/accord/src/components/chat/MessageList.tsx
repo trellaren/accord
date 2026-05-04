@@ -9,11 +9,16 @@ interface Props {
 
 /** Detect if a message content is a JSON-encoded media attachment. */
 function parseMediaContent(content: string): { mime: string; name: string; data: string } | null {
-  if (!content.startsWith('{"_type":"media"')) return null;
+  // Quick early exit – all media messages start with the opening brace
+  if (!content.startsWith("{")) return null;
   try {
     const parsed = JSON.parse(content);
-    if (parsed._type === "media" && parsed.data) {
-      return { mime: parsed.mime ?? "", name: parsed.name ?? "attachment", data: parsed.data };
+    if (parsed && parsed._type === "media" && typeof parsed.data === "string") {
+      return {
+        mime: typeof parsed.mime === "string" ? parsed.mime : "",
+        name: typeof parsed.name === "string" ? parsed.name : "attachment",
+        data: parsed.data,
+      };
     }
   } catch {
     // Not valid JSON – treat as regular text.
