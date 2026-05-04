@@ -7,9 +7,11 @@ import { MemberPanel } from "./MemberPanel";
 import { VoiceStatusBar } from "./VoiceStatusBar";
 import { UserProfileModal } from "../user/UserProfileModal";
 import { useAppStore } from "../../store/useAppStore";
+import { useKeybinds } from "../../lib/useKeybinds";
 import styles from "./AppLayout.module.css";
 
 export function AppLayout() {
+  useKeybinds();
   const { userProfile, localPeerId } = useAppStore();
   const [showProfile, setShowProfile] = useState(false);
 

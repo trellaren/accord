@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../../store/useAppStore";
+import {
+  getKeybinds,
+  setKeybinds,
+  eventToKeyString,
+  formatKey,
+  KeybindConfig,
+} from "../../lib/keybinds";
 import styles from "./UserProfileModal.module.css";
 
 // Common timezones for the selector.
@@ -57,6 +64,11 @@ export function UserProfileModal({ onClose }: Props) {
   const [connectionStrings, setConnectionStrings] = useState<string[]>([]);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Keybinds state ───────────────────────────────────────────────────────
+  const [keybinds, setKeybindsState] = useState<KeybindConfig[]>(() => getKeybinds());
+  const [recordingAction, setRecordingAction] = useState<string | null>(null);
+  const recordingRef = useRef<string | null>(null);
 
   // Populate form from loaded profile and load device lists.
   useEffect(() => {
@@ -119,6 +131,52 @@ export function UserProfileModal({ onClose }: Props) {
       // fallback: select the text
     }
   }
+
+  // ── Keybind helpers ───────────────────────────────────────────────────────
+
+  function startRecording(action: string) {
+    if (recordingRef.current === action) {
+      // Second click cancels recording.
+      recordingRef.current = null;
+      setRecordingAction(null);
+      return;
+    }
+    recordingRef.current = action;
+    setRecordingAction(action);
+  }
+
+  function clearKeybind(action: string) {
+    const updated = keybinds.map((kb) =>
+      kb.action === action ? { ...kb, key: null } : kb,
+    );
+    setKeybindsState(updated);
+    setKeybinds(updated);
+  }
+
+  // Listen for a key while in recording mode.
+  useEffect(() => {
+    if (!recordingAction) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      e.preventDefault();
+      const key = eventToKeyString(e);
+      if (!key) return;
+      const action = recordingRef.current;
+      if (!action) return;
+
+      const updated = keybinds.map((kb) =>
+        kb.action === action ? { ...kb, key } : kb,
+      );
+      setKeybindsState(updated);
+      setKeybinds(updated);
+      recordingRef.current = null;
+      setRecordingAction(null);
+    }
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordingAction]);
 
   return (
     <div className={styles.overlay} onClick={onClose}>
@@ -295,6 +353,41 @@ export function UserProfileModal({ onClose }: Props) {
               ))}
             </select>
           </div>
+
+          {/* ── Keybinds ────────────────────────────── */}
+          <p className={styles.sectionHeading}>Keybinds</p>
+
+          {keybinds.map((kb) => (
+            <div key={kb.action} className={styles.keybindRow}>
+              <span className={styles.keybindLabel}>{kb.label}</span>
+              <div className={styles.keybindControls}>
+                <span
+                  className={`${styles.keybindKey}${recordingAction === kb.action ? ` ${styles.keybindKeyRecording}` : ""}`}
+                >
+                  {recordingAction === kb.action ? "Press any key…" : formatKey(kb.key)}
+                </span>
+                <button
+                  type="button"
+                  className={styles.keybindSetBtn}
+                  onClick={() => startRecording(kb.action)}
+                  disabled={loading}
+                >
+                  {recordingAction === kb.action ? "Cancel" : "Set"}
+                </button>
+                {kb.key && recordingAction !== kb.action && (
+                  <button
+                    type="button"
+                    className={styles.keybindClearBtn}
+                    onClick={() => clearKeybind(kb.action)}
+                    disabled={loading}
+                    title="Clear keybind"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
 
           {error && <p className={styles.error}>{error}</p>}
           {saved && <p className={styles.success}>✓ Profile saved!</p>}

@@ -60,11 +60,191 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 16px;
+  gap: 6px;
+  padding: 12px 16px 14px;
   background: var(--bg-secondary);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
+  cursor: context-menu;
+  position: relative;
+  transition: border-color 0.15s;
+}
+
+.peerCard:hover {
+  border-color: var(--border-strong);
+}
+
+.peerCardSelf {
+  border-color: var(--accent);
+}
+
+.peerCardMuted {
+  opacity: 0.7;
+}
+
+.peerCardTop {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  min-height: 18px;
+}
+
+.pingIndicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hostIcon {
+  color: var(--warning, #faa61a);
+}
+
+.signalIcon {
+  color: var(--success, #43b581);
+}
+
+.avatarMuted {
+  opacity: 0.5;
+}
+
+.peerBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  min-height: 18px;
+}
+
+.youBadge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: #fff;
+  letter-spacing: 0.03em;
+}
+
+.hostBadge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--warning, #faa61a);
+  color: #fff;
+  letter-spacing: 0.03em;
+}
+
+.mutedBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--danger);
+  color: #fff;
+}
+
+.deafenedBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong);
+}
+
+.videoOffBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Role management overlay */
+.roleOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1500;
+}
+
+.rolePanel {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  min-width: 300px;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rolePanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.rolePanelClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  transition: background 0.1s;
+}
+
+.rolePanelClose:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.rolePanelHint {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 8px 0;
+}
+
+.roleChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.roleChip {
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.roleChip:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.roleChipActive {
+  font-weight: 700;
 }
 
 .avatar {
