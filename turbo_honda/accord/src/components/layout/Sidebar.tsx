@@ -26,6 +26,9 @@ export function Sidebar() {
     stopVideo,
     beginScreenShare,
     endScreenShare,
+    localPeerId,
+    userProfile,
+    channelMembers,
   } = useAppStore();
   const navigate = useNavigate();
   const [showAddChannel, setShowAddChannel] = useState(false);
@@ -110,6 +113,11 @@ export function Sidebar() {
             channels={textChannels}
             activeId={activeChannelId}
             peers={peers}
+            channelMembers={{}}
+            voiceChannelId={null}
+            localPeerId={null}
+            localDisplayName={null}
+            localAvatarUrl={null}
             onSelect={handleSelect}
           />
           <ChannelSection
@@ -117,6 +125,11 @@ export function Sidebar() {
             channels={voiceChannels}
             activeId={activeChannelId}
             peers={peers}
+            channelMembers={channelMembers}
+            voiceChannelId={voiceChannelId}
+            localPeerId={localPeerId}
+            localDisplayName={userProfile?.display_name ?? null}
+            localAvatarUrl={userProfile?.avatar_url ?? null}
             onSelect={handleSelect}
           />
 
@@ -240,16 +253,77 @@ interface ChannelSectionProps {
   channels: ChannelInfo[];
   activeId: string | null;
   peers: PeerInfo[];
+  /** Channel-id → peer list from the presence announcements. */
+  channelMembers: Record<string, PeerInfo[]>;
+  /** Channel id the local user is currently in (voice only). */
+  voiceChannelId: string | null;
+  /** Local user's peer id. */
+  localPeerId: string | null;
+  /** Local user's display name (from profile). */
+  localDisplayName: string | null;
+  /** Local user's avatar URL (from profile). */
+  localAvatarUrl: string | null;
   onSelect: (c: ChannelInfo) => void;
 }
 
-function ChannelSection({ title, channels, activeId, peers, onSelect }: ChannelSectionProps) {
+/** Small circular avatar that shows an image or falls back to initials. */
+function MemberAvatar({
+  name,
+  avatarUrl,
+}: {
+  name: string;
+  avatarUrl?: string | null;
+}) {
+  if (avatarUrl) {
+    return (
+      <img
+        className={styles.memberAvatarImg}
+        src={avatarUrl}
+        alt={name}
+        onError={(e) => {
+          // Fall back to the initials avatar if the image fails to load.
+          (e.currentTarget as HTMLImageElement).style.display = "none";
+          const parent = e.currentTarget.parentElement;
+          if (parent) parent.dataset.fallback = "1";
+        }}
+      />
+    );
+  }
+  const initials = name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+  return <span className={styles.memberAvatar}>{initials || "?"}</span>;
+}
+
+function ChannelSection({
+  title,
+  channels,
+  activeId,
+  peers,
+  channelMembers,
+  voiceChannelId,
+  localPeerId,
+  localDisplayName,
+  localAvatarUrl,
+  onSelect,
+}: ChannelSectionProps) {
   const icon: Record<string, string> = { text: "#", voice: "🔊" };
   return (
     <div className={styles.section}>
       <p className={styles.sectionTitle}>{title}</p>
       {channels.map((c) => {
-        const membersHere = peers.filter((p) => p.channel_id === c.id);
+        // For voice channels, gather members from presence announcements and
+        // legacy peer objects, then inject the local user if they are active.
+        const announced = channelMembers[c.id] ?? [];
+        const legacyPeers = peers.filter(
+          (p) => p.channel_id === c.id && !announced.some((m) => m.peer_id === p.peer_id),
+        );
+        const remotePeers = [...announced, ...legacyPeers];
+
+        const localInThisChannel = voiceChannelId === c.id && !!localPeerId;
+
         return (
           <div key={c.id}>
             <button
@@ -259,11 +333,28 @@ function ChannelSection({ title, channels, activeId, peers, onSelect }: ChannelS
               <span className={styles.channelIcon}>{icon[c.kind] ?? "#"}</span>
               <span>{c.name}</span>
             </button>
-            {/* Show peers currently active in this channel */}
-            {membersHere.map((p) => (
-              <div key={p.peer_id} className={styles.channelMember}>
-                <span className={styles.memberDot} />
-                <span className={styles.memberName} title={p.peer_id}>
+
+            {/* Local user below the channel they joined */}
+            {localInThisChannel && (
+              <div className={styles.channelMember} title="You">
+                <MemberAvatar
+                  name={localDisplayName || localPeerId!}
+                  avatarUrl={localAvatarUrl}
+                />
+                <span className={styles.memberName}>
+                  {localDisplayName && localDisplayName.trim()
+                    ? localDisplayName
+                    : localPeerId!.slice(0, 10) + "…"}
+                  <span className={styles.memberSelfBadge}>you</span>
+                </span>
+              </div>
+            )}
+
+            {/* Remote peers in this channel */}
+            {remotePeers.map((p) => (
+              <div key={p.peer_id} className={styles.channelMember} title={p.peer_id}>
+                <MemberAvatar name={p.peer_id} />
+                <span className={styles.memberName}>
                   {p.peer_id.slice(0, 10)}…
                 </span>
               </div>

@@ -1,3 +1,4 @@
+use crate::crypto;
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -61,7 +62,11 @@ pub async fn list_channels(
         .map_err(|e| e.to_string())
 }
 
-/// Send a text message to a channel. The message is gossiped to all peers.
+/// Send a text message to a channel.
+///
+/// The message content is encrypted with a per-channel key derived from the
+/// local node's identity before being persisted.  The plaintext is returned
+/// to the caller so the UI can display it immediately without a round-trip.
 #[tauri::command]
 pub async fn send_message(
     channel_id: String,
@@ -69,23 +74,48 @@ pub async fn send_message(
     author_peer_id: String,
     state: State<'_, AppState>,
 ) -> Result<MessagePayload, String> {
-    state
+    let passphrase =
+        crypto::derive_channel_passphrase(&state.message_key, &channel_id);
+    let encrypted = crypto::encrypt_message(&passphrase, &content)
+        .map_err(|e| format!("encrypt: {e}"))?;
+
+    let mut msg = state
         .db
-        .send_message(channel_id, content, author_peer_id)
+        .send_message(channel_id, encrypted, author_peer_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // Return plaintext to the UI.
+    msg.content = content;
+    Ok(msg)
 }
 
 /// Retrieve the most recent messages for a channel (oldest first).
+///
+/// Stored ciphertexts are decrypted before being returned to the UI.
+/// Messages that cannot be decrypted (e.g. from before encryption was enabled)
+/// are returned with their raw content so they remain visible.
 #[tauri::command]
 pub async fn get_messages(
     channel_id: String,
     limit: Option<u32>,
     state: State<'_, AppState>,
 ) -> Result<Vec<MessagePayload>, String> {
-    state
+    let passphrase =
+        crypto::derive_channel_passphrase(&state.message_key, &channel_id);
+
+    let mut messages = state
         .db
         .get_messages(&channel_id, limit.unwrap_or(50))
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    for msg in &mut messages {
+        if let Ok(plaintext) = crypto::decrypt_message(&passphrase, &msg.content) {
+            msg.content = plaintext;
+        }
+        // If decryption fails (legacy plaintext message), leave content as-is.
+    }
+
+    Ok(messages)
 }

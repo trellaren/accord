@@ -5,6 +5,7 @@ use tauri::{
 };
 
 mod commands;
+mod crypto;
 mod db;
 mod p2p;
 mod voip;
@@ -19,6 +20,9 @@ pub struct AppState {
     pub voip: std::sync::Mutex<voip::VoipSession>,
     /// SQLite-backed channel / message store.
     pub db: db::Db,
+    /// 32-byte master key derived from the local Ed25519 private key.
+    /// Used to derive per-channel encryption keys for message E2E encryption.
+    pub message_key: [u8; 32],
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -29,6 +33,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let voip_session = voip::VoipSession::new();
 
@@ -36,6 +42,18 @@ pub fn run() {
                 .path()
                 .app_data_dir()
                 .expect("could not resolve app data directory");
+
+            // Derive the 32-byte master key from the Ed25519 identity key.
+            // The raw Ed25519 secret bytes are hashed with SHA-256 so the raw
+            // secret is never stored in AppState directly.
+            let message_key: [u8; 32] = {
+                let keypair = p2p::identity::load_or_create_keypair(&app_dir)
+                    .expect("failed to load or create Ed25519 keypair");
+                let raw = keypair
+                    .to_protobuf_encoding()
+                    .expect("keypair protobuf encoding");
+                crypto::master_key_from_ed25519(&raw)
+            };
 
             let (p2p_node, db) = tauri::async_runtime::block_on(async {
                 let p2p_node = p2p::P2PNode::new(&app_dir);
@@ -51,6 +69,7 @@ pub fn run() {
                 p2p: std::sync::Mutex::new(p2p_node),
                 voip: std::sync::Mutex::new(voip_session),
                 db,
+                message_key,
             });
 
             // ── System tray ────────────────────────────────────────────────

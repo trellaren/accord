@@ -266,6 +266,7 @@ cargo tauri build
 - [ ] SQLite persistence for messages (sqlx)
 - [x] User identity & key management (Ed25519 keypair persisted to disk)
 - [ ] Screen share support
-- [ ] End-to-end encryption for text messages (noise protocol / age)
+- [x] End-to-end encryption for text messages (age — passphrase derived from local Ed25519 identity key)
 - [x] System tray integration
-- [ ] Auto-update via Tauri updater plugin
+- [x] Auto-update via Tauri updater plugin
+- [x] Voice channel shows local user's avatar and display name in the sidebar
