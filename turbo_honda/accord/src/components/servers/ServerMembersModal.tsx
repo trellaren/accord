@@ -9,9 +9,13 @@ interface Props {
 }
 
 export function ServerMembersModal({ serverId, onClose }: Props) {
-  const { loadServerMembers, kickServerMember, localPeerId, servers } = useAppStore();
+  const { loadServerMembers, kickServerMember, localPeerId, servers, invitePeer } = useAppStore();
   const [members, setMembers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [peerAddress, setPeerAddress] = useState("");
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState(false);
 
   const server = servers.find((s) => s.id === serverId);
   const isOwner = server?.owner_peer_id === localPeerId;
@@ -27,6 +31,24 @@ export function ServerMembersModal({ serverId, onClose }: Props) {
     if (!window.confirm(`Remove peer ${peerId.slice(0, 12)}…?`)) return;
     await kickServerMember(serverId, peerId);
     setMembers((prev) => prev.filter((p) => p !== peerId));
+  }
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault();
+    const addr = peerAddress.trim();
+    if (!addr) return;
+    setInviteLoading(true);
+    setInviteError(null);
+    setInviteSuccess(false);
+    try {
+      await invitePeer(addr, serverId);
+      setInviteSuccess(true);
+      setPeerAddress("");
+    } catch (err) {
+      setInviteError(String(err));
+    } finally {
+      setInviteLoading(false);
+    }
   }
 
   return (
@@ -64,6 +86,35 @@ export function ServerMembersModal({ serverId, onClose }: Props) {
             )}
           </ul>
         )}
+
+        {isOwner && (
+          <form onSubmit={handleInvite} className={styles.form}>
+            <label className={styles.label}>Invite by peer address</label>
+            <input
+              className={styles.input}
+              placeholder="/ip4/192.168.1.5/tcp/4001"
+              value={peerAddress}
+              onChange={(e) => setPeerAddress(e.target.value)}
+              disabled={inviteLoading}
+            />
+            {inviteError && <p className={styles.error}>{inviteError}</p>}
+            {inviteSuccess && (
+              <p className={memberStyles.inviteSuccess}>
+                Invite sent! They will join automatically once connected.
+              </p>
+            )}
+            <div className={styles.actions}>
+              <button
+                type="submit"
+                className={styles.btnPrimary}
+                disabled={inviteLoading || !peerAddress.trim()}
+              >
+                {inviteLoading ? "Inviting…" : "Invite"}
+              </button>
+            </div>
+          </form>
+        )}
+
         <div className={styles.actions}>
           <button className={styles.btnPrimary} onClick={onClose}>
             Close

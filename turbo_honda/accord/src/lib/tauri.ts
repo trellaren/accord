@@ -52,6 +52,13 @@ export interface UserProfile {
 
 // ── P2P commands ──────────────────────────────────────────────────────────────
 
+/** Payload returned by the backend for a received server invite. */
+export interface ServerInvitePayload {
+  invite_code: string;
+  server_name: string;
+  from_peer_id: string;
+}
+
 export function getLocalPeerId(): Promise<string> {
   return invoke("get_local_peer_id");
 }
@@ -75,6 +82,25 @@ export function announceChannelPresence(channelId: string | null): Promise<void>
 /** Return all peers currently known to be in the given channel. */
 export function getPeersInChannel(channelId: string): Promise<PeerInfo[]> {
   return invoke("get_peers_in_channel", { channelId });
+}
+
+/**
+ * Queue a server invite to be sent to the peer at `peerAddress` once the
+ * libp2p connection is established, and dial the address.
+ */
+export function invitePeerToServer(
+  peerAddress: string,
+  serverId: string,
+): Promise<void> {
+  return invoke("invite_peer_to_server", { peerAddress, serverId });
+}
+
+/**
+ * Return (and clear) all server invites received from remote peers.
+ * Should be polled periodically by the frontend.
+ */
+export function getPendingServerInvites(): Promise<ServerInvitePayload[]> {
+  return invoke("get_pending_server_invites");
 }
 
 // ── Channel commands ──────────────────────────────────────────────────────────

@@ -28,12 +28,34 @@ use crate::commands::p2p::PeerInfo;
 /// GossipSub topic used to exchange channel-presence announcements.
 const PRESENCE_TOPIC: &str = "accord/presence";
 
+/// GossipSub topic used to send server-join invites between peers.
+const SERVER_INVITE_TOPIC: &str = "accord/server-invite";
+
 /// JSON payload published on [`PRESENCE_TOPIC`].
 #[derive(Serialize, Deserialize)]
 struct PresenceMessage {
     peer_id: String,
     /// `None` means the peer has left all channels.
     channel_id: Option<String>,
+}
+
+/// JSON payload published on [`SERVER_INVITE_TOPIC`].
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ServerInviteMessage {
+    /// The invite code the recipient should use to join the server.
+    pub invite_code: String,
+    /// Human-readable server name (for display purposes).
+    pub server_name: String,
+    /// PeerId of the sender.
+    pub from_peer_id: String,
+}
+
+/// Invite pending transmission once a specific peer address is connected.
+struct PendingOutboundInvite {
+    /// The multiaddr string that was dialled (used to match `ConnectionEstablished`).
+    target_addr: String,
+    /// Serialised [`ServerInviteMessage`].
+    data: Vec<u8>,
 }
 
 /// Combined libp2p behaviour for Accord.
@@ -56,6 +78,8 @@ enum SwarmCommand {
 type PeerMap = Arc<Mutex<HashMap<String, PeerInfo>>>;
 /// Maps peer_id -> current channel_id (None = not in any channel).
 type PresenceMap = Arc<Mutex<HashMap<String, Option<String>>>>;
+type PendingOutboundInvites = Arc<Mutex<Vec<PendingOutboundInvite>>>;
+type PendingReceivedInvites = Arc<Mutex<Vec<ServerInviteMessage>>>;
 
 /// Handle to the local libp2p node.
 ///
@@ -68,6 +92,10 @@ pub struct P2PNode {
     /// Channel presence: peer_id → channel_id (None = not in any channel).
     channel_presence: PresenceMap,
     discovery_started: bool,
+    /// Invites to be sent once the target peer connects.
+    pending_outbound_invites: PendingOutboundInvites,
+    /// Server invites received from remote peers, waiting to be consumed.
+    pending_received_invites: PendingReceivedInvites,
 }
 
 impl P2PNode {
@@ -132,9 +160,19 @@ impl P2PNode {
             .subscribe(&presence_topic)
             .expect("subscribe to presence topic");
 
+        // Subscribe to the server-invite topic.
+        let invite_topic = gossipsub::IdentTopic::new(SERVER_INVITE_TOPIC);
+        swarm
+            .behaviour_mut()
+            .gossipsub
+            .subscribe(&invite_topic)
+            .expect("subscribe to server-invite topic");
+
         let presence_topic_hash = presence_topic.hash();
+        let invite_topic_hash = invite_topic.hash();
 
         let local_peer_id = swarm.local_peer_id().to_string();
+        let local_peer_id_task = local_peer_id.clone();
 
         // Channel for sending commands to the swarm task (sync-compatible sender).
         let (command_tx, mut command_rx) = tokio::sync::mpsc::unbounded_channel::<SwarmCommand>();
@@ -146,6 +184,16 @@ impl P2PNode {
         // Channel presence map shared between the event loop and command handlers.
         let channel_presence: PresenceMap = Arc::new(Mutex::new(HashMap::new()));
         let presence_task = Arc::clone(&channel_presence);
+
+        // Outbound invites queued until the target peer connects.
+        let pending_outbound_invites: PendingOutboundInvites =
+            Arc::new(Mutex::new(Vec::new()));
+        let pending_outbound_task = Arc::clone(&pending_outbound_invites);
+
+        // Inbound invites received from remote peers, waiting to be consumed.
+        let pending_received_invites: PendingReceivedInvites =
+            Arc::new(Mutex::new(Vec::new()));
+        let pending_received_task = Arc::clone(&pending_received_invites);
 
         // Spawn the swarm event loop on the Tokio runtime that Tauri already provides.
         tokio::spawn(async move {
@@ -165,11 +213,36 @@ impl P2PNode {
                                     peer_id.to_string(),
                                     PeerInfo {
                                         peer_id: peer_id.to_string(),
-                                        address,
+                                        address: address.clone(),
                                         connected: true,
                                         channel_id: None,
                                     },
                                 );
+                                // Send any pending outbound invites destined for this address.
+                                let to_send: Vec<Vec<u8>> = {
+                                    let mut pending = pending_outbound_task.lock().unwrap();
+                                    let mut remaining = Vec::new();
+                                    let mut matched = Vec::new();
+                                    for invite in pending.drain(..) {
+                                        if invite.target_addr == address {
+                                            matched.push(invite.data);
+                                        } else {
+                                            remaining.push(invite);
+                                        }
+                                    }
+                                    *pending = remaining;
+                                    matched
+                                };
+                                for data in to_send {
+                                    let topic = gossipsub::IdentTopic::new(SERVER_INVITE_TOPIC);
+                                    if let Err(e) = swarm
+                                        .behaviour_mut()
+                                        .gossipsub
+                                        .publish(topic, data)
+                                    {
+                                        log::error!("Failed to publish server invite: {e}");
+                                    }
+                                }
                             }
                             SwarmEvent::ConnectionClosed { peer_id, .. } => {
                                 log::info!("Disconnected from {peer_id}");
@@ -229,6 +302,19 @@ impl P2PNode {
                                             .get_mut(&pm.peer_id)
                                         {
                                             info.channel_id = pm.channel_id;
+                                        }
+                                    }
+                                } else if message.topic == invite_topic_hash {
+                                    // Parse a server-invite and store it for the command layer.
+                                    if let Ok(invite) = serde_json::from_slice::<ServerInviteMessage>(&message.data) {
+                                        log::info!(
+                                            "Received server invite for '{}' from {}",
+                                            invite.server_name,
+                                            invite.from_peer_id,
+                                        );
+                                        // Only store if we are not the sender.
+                                        if invite.from_peer_id != local_peer_id_task {
+                                            pending_received_task.lock().unwrap().push(invite);
                                         }
                                     }
                                 } else {
@@ -291,6 +377,8 @@ impl P2PNode {
             peers,
             channel_presence,
             discovery_started: false,
+            pending_outbound_invites,
+            pending_received_invites,
         }
     }
 
@@ -375,6 +463,31 @@ impl P2PNode {
         log::info!("mDNS peer discovery is active");
         self.discovery_started = true;
         Ok(())
+    }
+
+    /// Queue a server invite to be sent to `target_addr` once connected, and
+    /// dial the address if not already connected.
+    pub fn queue_server_invite(&self, target_addr: &str, invite: &ServerInviteMessage) -> Result<()> {
+        let data = serde_json::to_vec(invite).map_err(|e| anyhow!("JSON encode: {e}"))?;
+        self.pending_outbound_invites.lock().unwrap().push(PendingOutboundInvite {
+            target_addr: target_addr.to_string(),
+            data,
+        });
+        // Dial the address so the connection is established.
+        let addr: Multiaddr = target_addr.parse().map_err(|e| anyhow!("invalid multiaddr: {e}"))?;
+        log::info!("Queueing server invite + dialling {target_addr}");
+        self.command_tx
+            .send(SwarmCommand::Dial(addr))
+            .map_err(|e| anyhow!("channel send error: {e}"))
+    }
+
+    /// Drain and return all server invites received from remote peers.
+    pub fn take_received_server_invites(&self) -> Vec<ServerInviteMessage> {
+        self.pending_received_invites
+            .lock()
+            .unwrap()
+            .drain(..)
+            .collect()
     }
 
     /// Publish a message on a GossipSub topic (used for text channels and signalling).

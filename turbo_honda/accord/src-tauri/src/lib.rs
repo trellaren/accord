@@ -144,6 +144,8 @@ pub fn run() {
             commands::p2p::start_discovery,
             commands::p2p::announce_channel_presence,
             commands::p2p::get_peers_in_channel,
+            commands::p2p::invite_peer_to_server,
+            commands::p2p::get_pending_server_invites,
             // VoIP / Voice
             commands::voip::join_voice_channel,
             commands::voip::leave_voice_channel,

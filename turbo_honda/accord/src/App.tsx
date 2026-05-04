@@ -34,6 +34,15 @@ export default function App() {
     checkForUpdate().then((info) => {
       if (info) setPendingUpdate(info);
     });
+
+    // Poll for server invites received from remote peers.
+    const inviteInterval = window.setInterval(() => {
+      useAppStore.getState().processPendingServerInvites();
+    }, 5_000);
+
+    return () => {
+      window.clearInterval(inviteInterval);
+    };
   }, []); // intentionally empty – run once on mount
 
   async function handleInstallUpdate() {
