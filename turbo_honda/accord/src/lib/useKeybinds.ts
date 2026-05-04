@@ -14,6 +14,9 @@ export function useKeybinds() {
   useEffect(() => {
     // Track which key strings are currently held so we only fire once per press.
     const heldKeys = new Set<string>();
+    // For push-to-talk and push-to-mute, store the mute state at the time the
+    // key went down so we can correctly restore it on key-up.
+    const pttStateBefore = new Map<string, boolean>();
 
     function isTyping(e: KeyboardEvent): boolean {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -56,11 +59,13 @@ export function useKeybinds() {
             }
             break;
           case "push_to_talk":
-            // Unmute while the key is held; re-mute on keyup.
+            // Record initial mute state, then unmute so the user can speak.
+            pttStateBefore.set(key, s.muted);
             if (s.muted) s.toggleMute();
             break;
           case "push_to_mute":
-            // Mute while the key is held; unmute on keyup.
+            // Record initial mute state, then mute while the key is held.
+            pttStateBefore.set(key, s.muted);
             if (!s.muted) s.toggleMute();
             break;
         }
@@ -81,12 +86,16 @@ export function useKeybinds() {
       for (const kb of keybinds) {
         if (!kb.key || kb.key !== key) continue;
 
-        if (kb.action === "push_to_talk" && !s.muted) {
-          // Key released → go back to muted.
-          s.toggleMute();
-        } else if (kb.action === "push_to_mute" && s.muted) {
-          // Key released → go back to unmuted.
-          s.toggleMute();
+        const wasMuted = pttStateBefore.get(key);
+        if (wasMuted === undefined) continue;
+        pttStateBefore.delete(key);
+
+        if (kb.action === "push_to_talk") {
+          // Restore muted state: re-mute only if the user was muted before PTT.
+          if (wasMuted && !s.muted) s.toggleMute();
+        } else if (kb.action === "push_to_mute") {
+          // Restore unmuted state: unmute only if the user was unmuted before PTM.
+          if (!wasMuted && s.muted) s.toggleMute();
         }
       }
     }
@@ -100,3 +109,4 @@ export function useKeybinds() {
     };
   }, []);
 }
+
