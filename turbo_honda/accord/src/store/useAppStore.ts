@@ -61,9 +61,6 @@ interface AppState {
   // Peers
   peers: PeerInfo[];
 
-  // Pending server invites received from remote peers (invite_code + server_name)
-  pendingServerInvites: ServerInvitePayload[];
-
   // Active members per channel (channel_id → peer list)
   channelMembers: Record<string, PeerInfo[]>;
 
@@ -154,7 +151,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeChannelId: null,
   messages: {},
   peers: [],
-  pendingServerInvites: [],
   channelMembers: {},
   inVoiceChannel: false,
   voiceChannelId: null,
@@ -312,10 +308,6 @@ export const useAppStore = create<AppState>((set, get) => ({
           const exists = s.servers.some((sv) => sv.id === server.id);
           return {
             servers: exists ? s.servers : [...s.servers, server],
-            pendingServerInvites: [
-              ...s.pendingServerInvites,
-              invite,
-            ],
           };
         });
       } catch (err) {
