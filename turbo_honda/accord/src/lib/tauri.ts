@@ -137,6 +137,14 @@ export function removeServerMember(
   return invoke("remove_server_member", { serverId, peerId });
 }
 
+export function leaveServer(serverId: string): Promise<void> {
+  return invoke("leave_server", { serverId });
+}
+
+export function deleteServer(serverId: string): Promise<void> {
+  return invoke("delete_server", { serverId });
+}
+
 // ── User profile commands ─────────────────────────────────────────────────────
 
 export function getUserProfile(): Promise<UserProfile> {

@@ -33,6 +33,8 @@ import {
   getServerInvite,
   listServerMembers,
   removeServerMember,
+  leaveServer,
+  deleteServer,
   getUserProfile,
   setUserProfile,
 } from "../lib/tauri";
@@ -86,6 +88,8 @@ interface AppState {
   getInviteCode: (serverId: string) => Promise<string>;
   loadServerMembers: (serverId: string) => Promise<string[]>;
   kickServerMember: (serverId: string, peerId: string) => Promise<void>;
+  leaveExistingServer: (serverId: string) => Promise<void>;
+  deleteExistingServer: (serverId: string) => Promise<void>;
 
   // Channel actions
   loadChannels: (serverId?: string | null) => Promise<void>;
@@ -191,6 +195,24 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   kickServerMember: async (serverId, peerId) => {
     await removeServerMember(serverId, peerId);
+  },
+
+  leaveExistingServer: async (serverId) => {
+    await leaveServer(serverId);
+    set((s) => ({
+      servers: s.servers.filter((sv) => sv.id !== serverId),
+      activeServerId: s.activeServerId === serverId ? null : s.activeServerId,
+      activeChannelId: s.activeServerId === serverId ? null : s.activeChannelId,
+    }));
+  },
+
+  deleteExistingServer: async (serverId) => {
+    await deleteServer(serverId);
+    set((s) => ({
+      servers: s.servers.filter((sv) => sv.id !== serverId),
+      activeServerId: s.activeServerId === serverId ? null : s.activeServerId,
+      activeChannelId: s.activeServerId === serverId ? null : s.activeChannelId,
+    }));
   },
 
   // ── Channels ──────────────────────────────────────────────────────────────

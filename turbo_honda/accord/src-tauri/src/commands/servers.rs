@@ -104,3 +104,54 @@ pub async fn remove_server_member(
         .await
         .map_err(|e| e.to_string())
 }
+
+/// Leave a server (remove the local peer from the member list).
+/// The server owner cannot leave – they must delete the server instead.
+#[tauri::command]
+pub async fn leave_server(
+    server_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let local_peer_id = {
+        let node = state.p2p.lock().map_err(|e| e.to_string())?;
+        node.local_peer_id()
+    };
+    let servers = state.db.list_servers().await.map_err(|e| e.to_string())?;
+    let server = servers
+        .into_iter()
+        .find(|s| s.id == server_id)
+        .ok_or_else(|| format!("Server '{server_id}' not found"))?;
+    if server.owner_peer_id == local_peer_id {
+        return Err("Server owner cannot leave — delete the server instead".to_string());
+    }
+    state
+        .db
+        .leave_server(&server_id, &local_peer_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Delete a server entirely.  Only the server owner may do this.
+#[tauri::command]
+pub async fn delete_server(
+    server_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let local_peer_id = {
+        let node = state.p2p.lock().map_err(|e| e.to_string())?;
+        node.local_peer_id()
+    };
+    let servers = state.db.list_servers().await.map_err(|e| e.to_string())?;
+    let server = servers
+        .into_iter()
+        .find(|s| s.id == server_id)
+        .ok_or_else(|| format!("Server '{server_id}' not found"))?;
+    if server.owner_peer_id != local_peer_id {
+        return Err("Only the server owner can delete it".to_string());
+    }
+    state
+        .db
+        .delete_server(&server_id)
+        .await
+        .map_err(|e| e.to_string())
+}

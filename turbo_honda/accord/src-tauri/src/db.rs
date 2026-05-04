@@ -461,6 +461,35 @@ impl Db {
         Ok(())
     }
 
+    /// Leave a server (remove the local peer from the member list, but keep the server record).
+    pub async fn leave_server(&self, server_id: &str, peer_id: &str) -> Result<()> {
+        let rows =
+            sqlx::query("DELETE FROM server_members WHERE server_id = ? AND peer_id = ?")
+                .bind(server_id)
+                .bind(peer_id)
+                .execute(&self.pool)
+                .await?
+                .rows_affected();
+        if rows == 0 {
+            return Err(anyhow!("Not a member of server '{server_id}'"));
+        }
+        Ok(())
+    }
+
+    /// Delete a server and all associated channels/messages (via ON DELETE CASCADE).
+    /// Only permitted for the server owner.
+    pub async fn delete_server(&self, server_id: &str) -> Result<()> {
+        let rows = sqlx::query("DELETE FROM servers WHERE id = ?")
+            .bind(server_id)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
+        if rows == 0 {
+            return Err(anyhow!("Server '{server_id}' not found"));
+        }
+        Ok(())
+    }
+
     /// Bootstrap a default server if none exists yet; return the server id.
     pub async fn bootstrap_default_server(&self) -> Result<String> {
         // If at least one server already exists, return the first one.
