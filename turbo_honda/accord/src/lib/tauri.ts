@@ -384,7 +384,26 @@ export function stopScreenShare(): Promise<void> {
   return invoke("stop_screen_share");
 }
 
-// ── Auto-updater ──────────────────────────────────────────────────────────────
+// ── Logging / debug ───────────────────────────────────────────────────────────
+
+export interface LogEntry {
+  /** ISO-8601 UTC timestamp. */
+  timestamp: string;
+  /** "ERROR" | "WARN" | "INFO" | "DEBUG" | "TRACE" */
+  level: string;
+  /** Logger target, usually the Rust module path. */
+  target: string;
+  /** Formatted log message. */
+  message: string;
+}
+
+/**
+ * Return the most recent log entries captured by the backend.
+ * Intended to be polled periodically by the debug window.
+ */
+export function getLogs(): Promise<LogEntry[]> {
+  return invoke("get_logs");
+}
 
 export interface UpdateInfo {
   version: string;
