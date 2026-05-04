@@ -5,7 +5,6 @@ import {
   MessagePayload,
   PeerInfo,
   ServerInfo,
-  ServerInvitePayload,
   ServerRole,
   UserProfile,
   AudioDevice,
