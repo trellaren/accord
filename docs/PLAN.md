@@ -73,11 +73,11 @@ a real-time media path, group keys — are the product.
   per-user volume, speaking indicators, ping display (issue #27).
 * Roles and permissions that every peer enforces.
 * End-to-end encryption for text and voice (issue #17).
-* Windows and Linux (macOS should work but is not a release gate).
+* Windows and Linux only.
 
 **Out of v1** (kept off the critical path, UI removed until built): video, screen
-share, bots/integrations, mobile, multi-device accounts, servers above ~25 people
-in a voice channel.
+share, bots/integrations, mobile, macOS, multi-device accounts, more than **15 people in a
+voice channel** (v1 hard cap), history for members who join later.
 
 ### 2.2 Stack and repository layout
 
@@ -114,8 +114,22 @@ about this:
 | LAN | mDNS (keep). | — |
 | NAT traversal | QUIC + TCP transports, AutoNAT v2, UPnP/NAT-PMP, DCUtR hole punching. | — |
 | Peers that still can't connect | **Any reachable member automatically acts as a Circuit Relay v2** for its server, with bandwidth limits. | `accord-node` in relay mode: anyone can run it on a home box with a port forward or a small VPS. It is a peer, holds no authority, and sees only ciphertext. |
-| Media ICE | ICE host + server-reflexive candidates; STUN against public STUN servers (stateless, third-party) and against reachable members. | Relay through a member / `accord-node` (TURN-like, encrypted media). |
+| Media ICE | ICE host + server-reflexive candidates. Reflexive addresses come first from other Accord peers (libp2p observed addresses), then from public STUN servers (on by default, user-disableable — see §2.3.1). | Relay through a member / `accord-node` (TURN-like, encrypted media). |
 | Offline delivery | Store-and-forward: every member keeps the server's log and serves it to whoever comes online. | Optional always-on `accord-node --archivist` per community. |
+
+#### 2.3.1 Third-party infrastructure (decided)
+
+* **Public STUN — on by default, can be disabled in settings.** A STUN server only
+  tells a client its public IP:port; it learns the user's IP and roughly when
+  they join calls, never content or who they talk to. Accord peers also answer
+  this for each other, so STUN improves the direct-connection success rate but
+  isn't required.
+* **Public IPFS DHT — off by default, opt-in per user.** It would let members find
+  each other after everyone's dynamic IPs change, but it publishes the user's
+  PeerId → IP mapping where anyone can look it up. The recommended alternative is a
+  community-run `accord-node` at a stable address, or a fresh invite link shared out of band.
+* **Inherent to P2P:** every directly connected peer sees your IP. A relay-only
+  privacy mode is on the post-v1 list.
 
 Rule: **nothing in the protocol requires a well-known host.** Every role
 (relay, archivist, voice forwarder) can be filled by any member and is chosen
@@ -134,7 +148,7 @@ dynamically.
   * `/accord/sync/1` — op-log reconciliation (§2.5).
   * `/accord/invite/1` — direct, addressed invite delivery (replaces the global invite topic).
   * `/accord/voice-signal/1` — SDP/ICE exchange for voice sessions.
-* Ping RTTs exposed to the UI (ping icon, issue #27) and fed to host election (§2.6).
+* Ping RTTs exposed to the UI (ping icon, issue #27).
 
 ### 2.5 Text and server state: a signed operation log
 
@@ -203,10 +217,11 @@ Rust core as a sidecar.
 
 **Topology:**
 
-* **≤ 8 participants: full mesh.** Each speaker encodes once and sends the same
-  encrypted frame to every peer (≈ 7 × 40 kbps ≈ 280 kbps upload worst case, far less
-  with DTX since most people are silent).
-* **> 8 participants: elected forwarding host** (issue #27). One participant
+* **v1: full mesh, hard cap of 15 participants per voice channel.** Each speaker
+  encodes once and sends the same encrypted frame to every peer: ≈ 14 × 40 kbps ≈
+  560 kbps upload while speaking, near zero when silent (DTX). Pairs that can't
+  connect directly are relayed through a reachable member.
+* **Post-v1: elected forwarding host** for larger channels (rest of issue #27). One participant
   receives everyone's frames and forwards only the active speakers (top 3 by
   audio level) to each listener. The host is picked by measured RTT/bandwidth
   and reachability, with an admin-pinned preferred host option, and is
@@ -229,8 +244,9 @@ Rust core as a sidecar.
   encrypted pairwise (HPKE to their X25519 key). Messages are encrypted with
   XChaCha20-Poly1305 using a ratcheted message key, so peers that relay or store
   ops can't read them. A `RemoveMember` or `Ban` triggers a new epoch, so the removed
-  user can't read anything sent afterwards. Optional server setting: share
-  past-epoch keys with new members so they can read history.
+  user can't read anything sent afterwards. **v1: new members only see messages
+  sent after they join** (past-epoch keys are never shared); a server option to
+  share history may come post-v1.
   *Later:* migrate to MLS (`openmls`) once the op DAG gives it the ordering it needs.
 * **Voice E2EE:** each speaker encrypts every Opus frame with their per-epoch
   voice key (SFrame, RFC 9605) before RTP; DTLS-SRTP adds hop-by-hop protection.
@@ -267,7 +283,7 @@ Keep the React + Zustand UI and most components. Changes:
 * **Voice quality:** loopback harness with recorded speech, injected loss and jitter;
   measures latency and flags regressions.
 * **CI (GitHub Actions):** `cargo fmt`, `clippy -D warnings`, `cargo test` on
-  Ubuntu + Windows; `tsc` + `vite build`; Tauri bundles on tags.
+  Ubuntu + Windows (the only release targets); `tsc` + `vite build`; Tauri bundles on tags.
 
 ---
 
@@ -311,13 +327,13 @@ history when it returns; a non-admin's `CreateChannel` is rejected by all peers.
 ### M3 — Party voice (L) — includes the stack decision gate
 
 * 2-peer call first: capture → APM → Opus → str0m → jitter buffer → playback.
-* Then mesh up to 8; presence; mute/deafen; PTT / VAD (wire existing keybinds);
+* Then mesh up to the 15-person cap; presence; mute/deafen; PTT / VAD (wire existing keybinds);
   device selection; per-user volume; speaking indicators.
 * **Gate:** latency, loss-resilience and CPU targets of §2.6 met on Windows and
   Linux. If not, decide on the Electron fallback before continuing.
 
-**Exit:** a 5-person call across mixed networks for 30 minutes with no
-dropouts that last more than 1 s.
+**Exit:** a 15-person call across mixed networks for 30 minutes with no
+dropouts that last more than 1 s; a 16th join is refused with a clear message.
 
 ### M4 — End-to-end security (M)
 
@@ -328,19 +344,20 @@ dropouts that last more than 1 s.
 **Exit:** an external reviewer confirms that a removed member and a relaying
 non-member can't read text or hear voice. Closes #17.
 
-### M5 — Scale, hosting, release (M)
+### M5 — Hosting and release (S–M)
 
-* Elected forwarding host for > 8 voice participants, admin-preferred host,
-  periodic re-evaluation (closes #27).
 * `accord-node --archivist` and `--relay` packaging (systemd unit, Docker image).
-* Signed auto-updates, installers, crash/log export, onboarding polish.
+* Signed auto-updates, Windows (MSI/NSIS) and Linux (AppImage/.deb) installers,
+  crash/log export, onboarding polish.
 
-**Exit:** 20-person voice channel stable; v1.0 tagged.
+**Exit:** v1.0 tagged.
 
 ### Post-v1
 
-Video and screen share (same RTP/SFrame path); MLS; multi-device; mobile;
-large-server log compaction and range-based reconciliation.
+Elected forwarding host for voice channels above 15 (rest of #27); video and screen
+share (same RTP/SFrame path); optional history sharing for new members; relay-only
+privacy mode; MLS; multi-device; macOS; mobile; large-server log compaction and
+range-based reconciliation.
 
 ### 3.1 Keep / rewrite / delete map for `turbo_honda`
 
@@ -368,14 +385,12 @@ large-server log compaction and range-based reconciliation.
 | Op-log growth in busy servers | Slow sync, disk use | Per-channel backfill-first; snapshots + compaction post-v1 |
 | Permission edge cases under concurrency | Security holes | Deterministic replay rule, property tests, M4 review |
 
-### 3.3 Decisions needed from you
+### 3.3 Decisions
 
-1. **Media stack:** native Rust voice pipeline (recommended; matches the current
-   Tauri app and Linux target) vs. switching the shell to Electron for
-   Chromium WebRTC. The plan assumes Rust, with a gate at M3.
-2. **Third-party infrastructure tolerance:** OK to use public STUN servers by
-   default? OK to offer the public IPFS DHT as an opt-in discovery fallback?
-3. **v1 voice size cap:** 8 (mesh only, simpler) or ~25 (requires the forwarding host
-   in v1)?
-4. **History for new members:** share past messages on join (convenient) or not (more private)?
-5. **macOS:** best-effort, or a release target?
+| # | Question | Decision |
+|---|---|---|
+| 1 | Media stack | Native Rust voice pipeline; Electron as the fallback at the M3 gate. |
+| 2 | Third-party infrastructure | Public STUN on by default (can be disabled); public IPFS DHT off by default, opt-in (§2.3.1). |
+| 3 | v1 voice size | Hard cap of 15, full mesh. Forwarding host is post-v1. |
+| 4 | History for new members | Not in v1: members see only messages sent after they join. |
+| 5 | Platforms | Windows and Linux only. |
